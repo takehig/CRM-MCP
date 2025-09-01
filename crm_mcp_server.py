@@ -7,13 +7,14 @@ Port: 8004
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import sqlite3
-import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -30,8 +31,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# データベース接続
-CRM_DB_PATH = "/home/ec2-user/wealthai/data/wealthai.db"
+# データベース接続設定
+DB_CONFIG = {
+    'host': 'localhost',
+    'port': 5432,
+    'database': 'wealthai',
+    'user': 'wealthai_user',
+    'password': 'wealthai123'
+}
 
 class MCPRequest(BaseModel):
     method: str
@@ -42,10 +49,13 @@ class MCPResponse(BaseModel):
     error: Optional[str] = None
 
 def get_db_connection():
-    """CRMデータベース接続"""
-    if not os.path.exists(CRM_DB_PATH):
-        raise HTTPException(status_code=500, detail="CRM database not found")
-    return sqlite3.connect(CRM_DB_PATH)
+    """PostgreSQLデータベース接続"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        return conn
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+        raise HTTPException(status_code=500, detail="Database connection failed")
 
 @app.get("/health")
 async def health_check():
@@ -111,17 +121,17 @@ async def search_customers(params: Dict[str, Any]):
     limit = params.get("limit", 10)
     
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    query = "SELECT id, name, email, phone, risk_level, total_assets FROM customers WHERE 1=1"
+    query = "SELECT customer_id, name, email, phone, risk_tolerance, net_worth FROM customers WHERE 1=1"
     query_params = []
     
     if name:
-        query += " AND name LIKE ?"
+        query += " AND name ILIKE %s"
         query_params.append(f"%{name}%")
     
     if risk_level:
-        query += " AND risk_level = ?"
+        query += " AND risk_tolerance = %s"
         query_params.append(risk_level)
     
     query += f" LIMIT {limit}"
@@ -133,12 +143,12 @@ async def search_customers(params: Dict[str, Any]):
     result = []
     for customer in customers:
         result.append({
-            "id": customer[0],
-            "name": customer[1],
-            "email": customer[2],
-            "phone": customer[3],
-            "risk_level": customer[4],
-            "total_assets": customer[5]
+            "id": customer['customer_id'],
+            "name": customer['name'],
+            "email": customer['email'],
+            "phone": customer['phone'],
+            "risk_level": customer['risk_tolerance'],
+            "total_assets": customer['net_worth']
         })
     
     return MCPResponse(result=result)
@@ -150,14 +160,15 @@ async def get_customer_holdings(params: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="customer_id is required")
     
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     query = """
-    SELECT h.id, h.product_code, h.quantity, h.purchase_price, h.current_value,
-           h.purchase_date, p.product_name, p.product_type
+    SELECT h.holding_id, h.quantity, h.unit_price, h.current_price, h.current_value,
+           h.purchase_date, h.maturity_date, h.status,
+           p.product_code, p.product_name, p.product_type, p.maturity_date as product_maturity
     FROM holdings h
-    LEFT JOIN products p ON h.product_code = p.product_code
-    WHERE h.customer_id = ?
+    LEFT JOIN products p ON h.product_id = p.product_id
+    WHERE h.customer_id = %s
     """
     
     cursor.execute(query, (customer_id,))
@@ -167,14 +178,16 @@ async def get_customer_holdings(params: Dict[str, Any]):
     result = []
     for holding in holdings:
         result.append({
-            "id": holding[0],
-            "product_code": holding[1],
-            "quantity": holding[2],
-            "purchase_price": holding[3],
-            "current_value": holding[4],
-            "purchase_date": holding[5],
-            "product_name": holding[6],
-            "product_type": holding[7]
+            "id": holding['holding_id'],
+            "product_code": holding['product_code'],
+            "quantity": float(holding['quantity']) if holding['quantity'] else 0,
+            "purchase_price": float(holding['unit_price']) if holding['unit_price'] else 0,
+            "current_value": float(holding['current_value']) if holding['current_value'] else 0,
+            "purchase_date": holding['purchase_date'].isoformat() if holding['purchase_date'] else None,
+            "maturity_date": holding['maturity_date'].isoformat() if holding['maturity_date'] else None,
+            "product_name": holding['product_name'],
+            "product_type": holding['product_type'],
+            "status": holding['status']
         })
     
     return MCPResponse(result=result)
