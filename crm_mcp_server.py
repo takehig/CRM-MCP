@@ -41,11 +41,15 @@ DB_CONFIG = {
 }
 
 class MCPRequest(BaseModel):
+    jsonrpc: str = "2.0"
+    id: int
     method: str
     params: Dict[str, Any] = {}
 
 class MCPResponse(BaseModel):
-    result: Any
+    jsonrpc: str = "2.0"
+    id: Optional[int] = None
+    result: Any = None
     error: Optional[str] = None
     debug_info: Optional[Dict[str, Any]] = None
 
@@ -65,29 +69,58 @@ async def health_check():
 
 @app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
-    """MCP統一エンドポイント"""
+    """標準MCPプロトコル対応エンドポイント"""
     try:
         method = request.method
         params = request.params
         
-        if method == "search_customers":
-            return await search_customers(params)
-        elif method == "get_customer_holdings":
-            return await get_customer_holdings(params)
-        elif method == "search_customers_by_bond_maturity":
-            return await search_customers_by_bond_maturity(params)
-        elif method == "search_sales_notes":
-            return await search_sales_notes(params)
-        elif method == "get_cash_inflows":
-            return await get_cash_inflows(params)
-        elif method == "list_tools":
-            return await list_available_tools()
+        if method == "tools/call":
+            # 標準MCPプロトコル: tools/call
+            tool_name = params.get("name")
+            arguments = params.get("arguments", {})
+            
+            if tool_name == "search_customers":
+                result = await search_customers(arguments)
+            elif tool_name == "get_customer_holdings":
+                result = await get_customer_holdings(arguments)
+            elif tool_name == "search_customers_by_bond_maturity":
+                result = await search_customers_by_bond_maturity(arguments)
+            elif tool_name == "search_sales_notes":
+                result = await search_sales_notes(arguments)
+            elif tool_name == "get_cash_inflows":
+                result = await get_cash_inflows(arguments)
+            else:
+                return MCPResponse(
+                    id=request.id,
+                    error=f"Unknown tool: {tool_name}"
+                )
+            
+            return MCPResponse(
+                id=request.id,
+                result=result.result,
+                debug_info=result.debug_info
+            )
+            
+        elif method == "tools/list":
+            # ツール一覧
+            result = await list_available_tools()
+            return MCPResponse(
+                id=request.id,
+                result=result.result
+            )
+            
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown method: {method}")
+            return MCPResponse(
+                id=request.id,
+                error=f"Unknown method: {method}"
+            )
             
     except Exception as e:
         logger.error(f"MCP error: {e}")
-        return MCPResponse(result=None, error=str(e))
+        return MCPResponse(
+            id=request.id,
+            error=str(e)
+        )
 
 @app.get("/tools")
 async def list_available_tools():
