@@ -73,6 +73,8 @@ async def mcp_endpoint(request: MCPRequest):
             return await search_customers(params)
         elif method == "get_customer_holdings":
             return await get_customer_holdings(params)
+        elif method == "search_customers_by_bond_maturity":
+            return await search_customers_by_bond_maturity(params)
         elif method == "search_sales_notes":
             return await search_sales_notes(params)
         elif method == "get_cash_inflows":
@@ -110,6 +112,31 @@ async def list_available_tools():
                         "customer_id": {"type": "string", "description": "顧客ID"}
                     },
                     "required": ["customer_id"]
+                }
+            },
+            {
+                "name": "search_customers_by_bond_maturity",
+                "description": "債券の満期日条件で顧客を検索します（満期の近い債券保有者など）",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "days_until_maturity": {"type": "integer", "description": "満期までの日数（例：90日以内なら90）"},
+                        "maturity_date_from": {"type": "string", "description": "満期日開始（YYYY-MM-DD形式）"},
+                        "maturity_date_to": {"type": "string", "description": "満期日終了（YYYY-MM-DD形式）"}
+                    }
+                }
+            },
+            {
+                "name": "search_customers_by_maturity",
+                "description": "満期日条件で顧客を検索します（満期の近い債券保有者など）",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "days_until_maturity": {"type": "integer", "description": "満期までの日数（例：90日以内）"},
+                        "maturity_date_from": {"type": "string", "description": "満期日開始（YYYY-MM-DD形式）"},
+                        "maturity_date_to": {"type": "string", "description": "満期日終了（YYYY-MM-DD形式）"},
+                        "product_type": {"type": "string", "description": "商品タイプ（債券など）"}
+                    }
                 }
             }
         ]
@@ -272,6 +299,61 @@ async def get_cash_inflows(params: Dict[str, Any]):
         })
     
     return MCPResponse(result=result)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8004)
+async def search_customers_by_bond_maturity(params: Dict[str, Any]):
+    """債券満期日条件での顧客検索"""
+    days_until_maturity = params.get("days_until_maturity")
+    maturity_date_from = params.get("maturity_date_from")
+    maturity_date_to = params.get("maturity_date_to")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    query = """
+    SELECT DISTINCT c.customer_id, c.name, c.email, c.phone, c.risk_tolerance,
+           h.maturity_date, p.product_name, p.product_type
+    FROM customers c
+    JOIN holdings h ON c.customer_id = h.customer_id
+    JOIN products p ON h.product_id = p.product_id
+    WHERE p.product_type ILIKE '%債券%' OR p.product_type ILIKE '%bond%'
+    """
+    query_params = []
+    
+    if days_until_maturity:
+        query += " AND h.maturity_date <= CURRENT_DATE + INTERVAL '%s days'"
+        query_params.append(days_until_maturity)
+    
+    if maturity_date_from:
+        query += " AND h.maturity_date >= %s"
+        query_params.append(maturity_date_from)
+    
+    if maturity_date_to:
+        query += " AND h.maturity_date <= %s"
+        query_params.append(maturity_date_to)
+    
+    query += " ORDER BY h.maturity_date ASC"
+    
+    cursor.execute(query, query_params)
+    results = cursor.fetchall()
+    conn.close()
+    
+    customers = []
+    for row in results:
+        customers.append({
+            "customer_id": row['customer_id'],
+            "name": row['name'],
+            "email": row['email'],
+            "phone": row['phone'],
+            "risk_tolerance": row['risk_tolerance'],
+            "maturity_date": row['maturity_date'].isoformat() if row['maturity_date'] else None,
+            "product_name": row['product_name'],
+            "product_type": row['product_type']
+        })
+    
+    return MCPResponse(result=customers)
 
 if __name__ == "__main__":
     import uvicorn
