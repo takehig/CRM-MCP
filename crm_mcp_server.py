@@ -47,6 +47,7 @@ class MCPRequest(BaseModel):
 class MCPResponse(BaseModel):
     result: Any
     error: Optional[str] = None
+    debug_info: Optional[Dict[str, Any]] = None
 
 def get_db_connection():
     """PostgreSQLデータベース接続"""
@@ -305,6 +306,9 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8004)
 async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     """債券満期日条件での顧客検索"""
+    import time
+    start_time = time.time()
+    
     days_until_maturity = params.get("days_until_maturity")
     maturity_date_from = params.get("maturity_date_from")
     maturity_date_to = params.get("maturity_date_to")
@@ -340,6 +344,8 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     results = cursor.fetchall()
     conn.close()
     
+    execution_time = time.time() - start_time
+    
     customers = []
     for row in results:
         customers.append({
@@ -353,7 +359,18 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "product_type": row['product_type']
         })
     
-    return MCPResponse(result=customers)
+    return MCPResponse(
+        result=customers,
+        debug_info={
+            "tool_name": "search_customers_by_bond_maturity",
+            "executed_query": query,
+            "query_params": query_params,
+            "input_params": params,
+            "execution_time_ms": round(execution_time * 1000, 2),
+            "rows_found": len(customers),
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn
