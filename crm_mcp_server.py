@@ -392,6 +392,26 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     
     cursor.execute(query, query_params)
     results = cursor.fetchall()
+    
+    # デバッグ: 実際のクエリ結果を詳細ログ
+    print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG ===")
+    print(f"[search_customers_by_bond_maturity] Raw SQL executed:")
+    print(f"{cursor.mogrify(query, query_params).decode('utf-8')}")
+    print(f"[search_customers_by_bond_maturity] Raw results count: {len(results)}")
+    if len(results) > 0:
+        print(f"[search_customers_by_bond_maturity] Sample result: {dict(results[0])}")
+    
+    # 基本データ確認
+    cursor.execute("SELECT COUNT(*) FROM products WHERE product_type ILIKE %s OR product_type ILIKE %s", ('%債券%', '%bond%'))
+    bond_products_count = cursor.fetchone()[0]
+    print(f"[search_customers_by_bond_maturity] Total bond products in DB: {bond_products_count}")
+    
+    cursor.execute("SELECT COUNT(*) FROM holdings h JOIN products p ON h.product_id = p.product_id WHERE p.product_type ILIKE %s OR p.product_type ILIKE %s", ('%債券%', '%bond%'))
+    bond_holdings_count = cursor.fetchone()[0]
+    print(f"[search_customers_by_bond_maturity] Total bond holdings in DB: {bond_holdings_count}")
+    
+    print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG END ===")
+    
     conn.close()
     
     print(f"[search_customers_by_bond_maturity] Query executed, found {len(results)} rows")
