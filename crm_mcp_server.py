@@ -67,55 +67,6 @@ async def health_check():
     """ヘルスチェック"""
     return {"status": "healthy", "service": "CRM-MCP", "timestamp": datetime.now().isoformat()}
 
-@app.post("/debug/sql")
-async def debug_sql_execution(request: dict):
-    """デバッグ用SQL実行エンドポイント"""
-    try:
-        sql = request.get("sql", "")
-        params = request.get("params", [])
-        
-        print(f"[DEBUG SQL] Executing: {sql}")
-        print(f"[DEBUG SQL] Params: {params}")
-        
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
-        if params:
-            cursor.execute(sql, params)
-        else:
-            cursor.execute(sql)
-            
-        if sql.strip().upper().startswith('SELECT'):
-            results = cursor.fetchall()
-            result_data = [dict(row) for row in results]
-            print(f"[DEBUG SQL] Results count: {len(result_data)}")
-            conn.close()
-            return {
-                "status": "success",
-                "query": sql,
-                "params": params,
-                "count": len(result_data),
-                "results": result_data[:10]  # 最初の10件のみ
-            }
-        else:
-            conn.commit()
-            conn.close()
-            return {
-                "status": "success", 
-                "query": sql,
-                "params": params,
-                "message": "Query executed successfully"
-            }
-            
-    except Exception as e:
-        print(f"[DEBUG SQL] Error: {e}")
-        return {
-            "status": "error",
-            "query": sql,
-            "params": params,
-            "error": str(e)
-        }
-
 @app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
     """標準MCPプロトコル対応エンドポイント"""
@@ -445,8 +396,14 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     # デバッグ: 実際のクエリ結果を詳細ログ
     print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG ===")
     print(f"[search_customers_by_bond_maturity] Raw SQL executed:")
-    print(f"{cursor.mogrify(query, query_params).decode('utf-8')}")
+    executed_query = cursor.mogrify(query, query_params).decode('utf-8')
+    print(f"{executed_query}")
+    print(f"[search_customers_by_bond_maturity] Query parameters: {query_params}")
     print(f"[search_customers_by_bond_maturity] Raw results count: {len(results)}")
+    print(f"[search_customers_by_bond_maturity] Executed query (formatted):")
+    print(f"  Query: {query}")
+    print(f"  Params: {query_params}")
+    print(f"  Full SQL: {executed_query}")
     if len(results) > 0:
         print(f"[search_customers_by_bond_maturity] Sample result: {dict(results[0])}")
     
