@@ -67,6 +67,55 @@ async def health_check():
     """ヘルスチェック"""
     return {"status": "healthy", "service": "CRM-MCP", "timestamp": datetime.now().isoformat()}
 
+@app.post("/debug/sql")
+async def debug_sql_execution(request: dict):
+    """デバッグ用SQL実行エンドポイント"""
+    try:
+        sql = request.get("sql", "")
+        params = request.get("params", [])
+        
+        print(f"[DEBUG SQL] Executing: {sql}")
+        print(f"[DEBUG SQL] Params: {params}")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        if params:
+            cursor.execute(sql, params)
+        else:
+            cursor.execute(sql)
+            
+        if sql.strip().upper().startswith('SELECT'):
+            results = cursor.fetchall()
+            result_data = [dict(row) for row in results]
+            print(f"[DEBUG SQL] Results count: {len(result_data)}")
+            conn.close()
+            return {
+                "status": "success",
+                "query": sql,
+                "params": params,
+                "count": len(result_data),
+                "results": result_data[:10]  # 最初の10件のみ
+            }
+        else:
+            conn.commit()
+            conn.close()
+            return {
+                "status": "success", 
+                "query": sql,
+                "params": params,
+                "message": "Query executed successfully"
+            }
+            
+    except Exception as e:
+        print(f"[DEBUG SQL] Error: {e}")
+        return {
+            "status": "error",
+            "query": sql,
+            "params": params,
+            "error": str(e)
+        }
+
 @app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
     """標準MCPプロトコル対応エンドポイント"""
