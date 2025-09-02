@@ -452,51 +452,38 @@ async def standardize_bond_maturity_arguments(raw_input: str) -> Dict[str, Any]:
 どんな形式の入力でも強引に標準形式に変換してください。
 JSON形式のみで回答してください。"""
 
-    try:
-        # 簡易的なLLM呼び出し（実際のBedrockクライアントを使用）
-        import boto3
-        import json as json_lib
-        
-        bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
-        
-        body = json_lib.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1000,
-            "system": system_prompt,
-            "messages": [{"role": "user", "content": raw_input}]
-        })
-        
-        response = bedrock.invoke_model(
-            body=body,
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            accept='application/json',
-            contentType='application/json'
-        )
-        
-        response_body = json_lib.loads(response.get('body').read())
-        standardized_text = response_body['content'][0]['text']
-        
-        # JSON部分を抽出
-        import re
-        json_match = re.search(r'\{.*\}', standardized_text, re.DOTALL)
-        if json_match:
-            standardized = json_lib.loads(json_match.group())
-        else:
-            # フォールバック
-            standardized = {"days_until_maturity": 730}
-            
-        print(f"[standardize_bond_maturity_arguments] Standardized output: {standardized}")
-        return standardized
-        
-    except Exception as e:
-        print(f"[standardize_bond_maturity_arguments] Error: {e}")
-        # フォールバック: 簡単なルールベース
-        if "2 year" in raw_input.lower() or "2年" in raw_input:
-            return {"days_until_maturity": 730}
-        elif "1 year" in raw_input.lower() or "1年" in raw_input:
-            return {"days_until_maturity": 365}
-        else:
-            return {"days_until_maturity": 365}  # デフォルト
+    # LLM呼び出し（エラー時はそのまま例外を投げる）
+    import boto3
+    import json as json_lib
+    
+    bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
+    
+    body = json_lib.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1000,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": raw_input}]
+    })
+    
+    response = bedrock.invoke_model(
+        body=body,
+        modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+        accept='application/json',
+        contentType='application/json'
+    )
+    
+    response_body = json_lib.loads(response.get('body').read())
+    standardized_text = response_body['content'][0]['text']
+    
+    # JSON部分を抽出
+    import re
+    json_match = re.search(r'\{.*\}', standardized_text, re.DOTALL)
+    if not json_match:
+        raise ValueError(f"LLM response does not contain valid JSON: {standardized_text}")
+    
+    standardized = json_lib.loads(json_match.group())
+    print(f"[standardize_bond_maturity_arguments] Standardized output: {standardized}")
+    return standardized
 
 if __name__ == "__main__":
     import uvicorn
