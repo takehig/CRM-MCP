@@ -452,6 +452,11 @@ async def standardize_bond_maturity_arguments(raw_input: str) -> Dict[str, Any]:
 どんな形式の入力でも強引に標準形式に変換してください。
 JSON形式のみで回答してください。"""
 
+    print(f"[standardize_bond_maturity_arguments] === LLM CALL START ===")
+    print(f"[standardize_bond_maturity_arguments] System Prompt:")
+    print(f"{system_prompt}")
+    print(f"[standardize_bond_maturity_arguments] User Input: {raw_input}")
+    
     # LLM呼び出し（エラー時はそのまま例外を投げる）
     import boto3
     import json as json_lib
@@ -465,6 +470,9 @@ JSON形式のみで回答してください。"""
         "messages": [{"role": "user", "content": raw_input}]
     })
     
+    print(f"[standardize_bond_maturity_arguments] Bedrock Request Body:")
+    print(f"{body}")
+    
     response = bedrock.invoke_model(
         body=body,
         modelId='anthropic.claude-3-sonnet-20240229-v1:0',
@@ -475,14 +483,22 @@ JSON形式のみで回答してください。"""
     response_body = json_lib.loads(response.get('body').read())
     standardized_text = response_body['content'][0]['text']
     
+    print(f"[standardize_bond_maturity_arguments] LLM Raw Response:")
+    print(f"{standardized_text}")
+    print(f"[standardize_bond_maturity_arguments] === LLM CALL END ===")
+    
     # JSON部分を抽出
     import re
     json_match = re.search(r'\{.*\}', standardized_text, re.DOTALL)
     if not json_match:
+        print(f"[standardize_bond_maturity_arguments] ERROR: No JSON found in response")
         raise ValueError(f"LLM response does not contain valid JSON: {standardized_text}")
     
-    standardized = json_lib.loads(json_match.group())
-    print(f"[standardize_bond_maturity_arguments] Standardized output: {standardized}")
+    extracted_json = json_match.group()
+    print(f"[standardize_bond_maturity_arguments] Extracted JSON: {extracted_json}")
+    
+    standardized = json_lib.loads(extracted_json)
+    print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
     return standardized
 
 if __name__ == "__main__":
