@@ -85,6 +85,11 @@ async def mcp_endpoint(request: MCPRequest):
                 result = await get_customer_holdings(arguments)
             elif tool_name == "search_customers_by_bond_maturity":
                 result = await search_customers_by_bond_maturity(arguments)
+                return MCPResponse(
+                    id=request.id,
+                    result=result["result"],
+                    debug_info=result["debug_info"]
+                )
             elif tool_name == "search_sales_notes":
                 result = await search_sales_notes(arguments)
             elif tool_name == "get_cash_inflows":
@@ -94,12 +99,6 @@ async def mcp_endpoint(request: MCPRequest):
                     id=request.id,
                     error=f"Unknown tool: {tool_name}"
                 )
-            
-            return MCPResponse(
-                id=request.id,
-                result=result.result,
-                debug_info=result.debug_info
-            )
             
         elif method == "tools/list":
             # ツール一覧
@@ -392,9 +391,9 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "product_type": row['product_type']
         })
     
-    return MCPResponse(
-        result=customers,
-        debug_info={
+    return {
+        "result": customers,
+        "debug_info": {
             "tool_name": "search_customers_by_bond_maturity",
             "executed_query": query,
             "query_params": query_params,
@@ -403,7 +402,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "rows_found": len(customers),
             "timestamp": datetime.now().isoformat()
         }
-    )
+    }
 
 if __name__ == "__main__":
     import uvicorn
