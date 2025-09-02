@@ -339,12 +339,16 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     start_time = time.time()
     
     print(f"[search_customers_by_bond_maturity] === FUNCTION START ===")
-    print(f"[search_customers_by_bond_maturity] Received params: {params}")
+    print(f"[search_customers_by_bond_maturity] Received raw params: {params}")
     print(f"[search_customers_by_bond_maturity] Params type: {type(params)}")
     
-    days_until_maturity = params.get("days_until_maturity")
-    maturity_date_from = params.get("maturity_date_from")
-    maturity_date_to = params.get("maturity_date_to")
+    # 引数標準化処理
+    standardized_params = await standardize_bond_maturity_arguments(params)
+    print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
+    
+    days_until_maturity = standardized_params.get("days_until_maturity")
+    maturity_date_from = standardized_params.get("maturity_date_from")
+    maturity_date_to = standardized_params.get("maturity_date_to")
     
     print(f"[search_customers_by_bond_maturity] Extracted values:")
     print(f"  - days_until_maturity: {days_until_maturity} (type: {type(days_until_maturity)})")
@@ -414,6 +418,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "executed_query": query,
             "query_params": query_params,
             "input_params": params,
+            "standardized_params": standardized_params,
             "execution_time_ms": round(execution_time * 1000, 2),
             "rows_found": len(customers),
             "timestamp": datetime.now().isoformat()
@@ -424,6 +429,32 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
     
     return result
+
+async def standardize_bond_maturity_arguments(raw_params: Dict[str, Any]) -> Dict[str, Any]:
+    """債券満期日検索の引数を標準化"""
+    print(f"[standardize_bond_maturity_arguments] Raw input: {raw_params}")
+    
+    # 簡単なルールベース変換（後でLLM化可能）
+    standardized = {}
+    
+    if "maturity_range" in raw_params:
+        range_value = raw_params["maturity_range"].lower()
+        if "2 years" in range_value or "2年" in range_value:
+            standardized["days_until_maturity"] = 730
+        elif "1 year" in range_value or "1年" in range_value:
+            standardized["days_until_maturity"] = 365
+        elif "6 months" in range_value or "6ヶ月" in range_value:
+            standardized["days_until_maturity"] = 180
+        elif "3 months" in range_value or "3ヶ月" in range_value:
+            standardized["days_until_maturity"] = 90
+    
+    # 既に標準形式の引数はそのまま通す
+    for key in ["days_until_maturity", "maturity_date_from", "maturity_date_to"]:
+        if key in raw_params:
+            standardized[key] = raw_params[key]
+    
+    print(f"[standardize_bond_maturity_arguments] Standardized output: {standardized}")
+    return standardized
 
 if __name__ == "__main__":
     import uvicorn
