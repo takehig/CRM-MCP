@@ -341,9 +341,18 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     import time
     start_time = time.time()
     
+    print(f"[CRM-MCP DEBUG] === search_customers_by_bond_maturity START ===")
+    print(f"[CRM-MCP DEBUG] Received params: {params}")
+    print(f"[CRM-MCP DEBUG] Params type: {type(params)}")
+    
     days_until_maturity = params.get("days_until_maturity")
     maturity_date_from = params.get("maturity_date_from")
     maturity_date_to = params.get("maturity_date_to")
+    
+    print(f"[CRM-MCP DEBUG] Extracted values:")
+    print(f"  - days_until_maturity: {days_until_maturity} (type: {type(days_until_maturity)})")
+    print(f"  - maturity_date_from: {maturity_date_from} (type: {type(maturity_date_from)})")
+    print(f"  - maturity_date_to: {maturity_date_to} (type: {type(maturity_date_to)})")
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -358,23 +367,33 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     """
     query_params = []
     
+    print(f"[CRM-MCP DEBUG] Base query: {query}")
+    
     if days_until_maturity:
         query += " AND h.maturity_date <= CURRENT_DATE + INTERVAL '%s days'"
         query_params.append(days_until_maturity)
+        print(f"[CRM-MCP DEBUG] Added days_until_maturity condition: {days_until_maturity}")
     
     if maturity_date_from:
         query += " AND h.maturity_date >= %s"
         query_params.append(maturity_date_from)
+        print(f"[CRM-MCP DEBUG] Added maturity_date_from condition: {maturity_date_from}")
     
     if maturity_date_to:
         query += " AND h.maturity_date <= %s"
         query_params.append(maturity_date_to)
+        print(f"[CRM-MCP DEBUG] Added maturity_date_to condition: {maturity_date_to}")
     
     query += " ORDER BY h.maturity_date ASC"
+    
+    print(f"[CRM-MCP DEBUG] Final query: {query}")
+    print(f"[CRM-MCP DEBUG] Final query_params: {query_params}")
     
     cursor.execute(query, query_params)
     results = cursor.fetchall()
     conn.close()
+    
+    print(f"[CRM-MCP DEBUG] Query executed, found {len(results)} rows")
     
     execution_time = time.time() - start_time
     
@@ -391,7 +410,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "product_type": row['product_type']
         })
     
-    return {
+    result = {
         "result": customers,
         "debug_info": {
             "tool_name": "search_customers_by_bond_maturity",
@@ -403,6 +422,11 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "timestamp": datetime.now().isoformat()
         }
     }
+    
+    print(f"[CRM-MCP DEBUG] Returning result with {len(customers)} customers")
+    print(f"[CRM-MCP DEBUG] === search_customers_by_bond_maturity END ===")
+    
+    return result
 
 if __name__ == "__main__":
     import uvicorn
