@@ -333,9 +333,6 @@ async def get_cash_inflows(params: Dict[str, Any]):
     
     return MCPResponse(result=result)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8004)
 async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     """債券満期日条件での顧客検索"""
     import time
