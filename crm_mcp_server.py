@@ -342,8 +342,8 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Received raw params: {params}")
     print(f"[search_customers_by_bond_maturity] Params type: {type(params)}")
     
-    # 引数標準化処理
-    standardized_params = await standardize_bond_maturity_arguments(params)
+    # 引数標準化処理（不定形 → 標準形式）
+    standardized_params = await standardize_bond_maturity_arguments(str(params))
     print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
     
     days_until_maturity = standardized_params.get("days_until_maturity")
@@ -430,31 +430,73 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     
     return result
 
-async def standardize_bond_maturity_arguments(raw_params: Dict[str, Any]) -> Dict[str, Any]:
-    """債券満期日検索の引数を標準化"""
-    print(f"[standardize_bond_maturity_arguments] Raw input: {raw_params}")
+async def standardize_bond_maturity_arguments(raw_input: str) -> Dict[str, Any]:
+    """債券満期日検索の引数を標準化（LLMベース）"""
+    print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
     
-    # 簡単なルールベース変換（後でLLM化可能）
-    standardized = {}
-    
-    if "maturity_range" in raw_params:
-        range_value = raw_params["maturity_range"].lower()
-        if "2 years" in range_value or "2年" in range_value:
-            standardized["days_until_maturity"] = 730
-        elif "1 year" in range_value or "1年" in range_value:
-            standardized["days_until_maturity"] = 365
-        elif "6 months" in range_value or "6ヶ月" in range_value:
-            standardized["days_until_maturity"] = 180
-        elif "3 months" in range_value or "3ヶ月" in range_value:
-            standardized["days_until_maturity"] = 90
-    
-    # 既に標準形式の引数はそのまま通す
-    for key in ["days_until_maturity", "maturity_date_from", "maturity_date_to"]:
-        if key in raw_params:
-            standardized[key] = raw_params[key]
-    
-    print(f"[standardize_bond_maturity_arguments] Standardized output: {standardized}")
-    return standardized
+    system_prompt = """あなたは債券満期日検索の引数標準化エージェントです。
+
+不定形の入力を以下の標準形式に変換してください：
+
+標準形式（いずれか1つ以上を出力）:
+- days_until_maturity: 満期までの日数（整数）
+- maturity_date_from: 開始日（YYYY-MM-DD形式）
+- maturity_date_to: 終了日（YYYY-MM-DD形式）
+
+変換例:
+入力: "{'maturity_range': '2 years'}" → 出力: {"days_until_maturity": 730}
+入力: "{'period': '18ヶ月'}" → 出力: {"days_until_maturity": 540}
+入力: "{'within': '6 months'}" → 出力: {"days_until_maturity": 180}
+入力: "{'from': '2025-01-01', 'to': '2026-12-31'}" → 出力: {"maturity_date_from": "2025-01-01", "maturity_date_to": "2026-12-31"}
+
+どんな形式の入力でも強引に標準形式に変換してください。
+JSON形式のみで回答してください。"""
+
+    try:
+        # 簡易的なLLM呼び出し（実際のBedrockクライアントを使用）
+        import boto3
+        import json as json_lib
+        
+        bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
+        
+        body = json_lib.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 1000,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": raw_input}]
+        })
+        
+        response = bedrock.invoke_model(
+            body=body,
+            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            accept='application/json',
+            contentType='application/json'
+        )
+        
+        response_body = json_lib.loads(response.get('body').read())
+        standardized_text = response_body['content'][0]['text']
+        
+        # JSON部分を抽出
+        import re
+        json_match = re.search(r'\{.*\}', standardized_text, re.DOTALL)
+        if json_match:
+            standardized = json_lib.loads(json_match.group())
+        else:
+            # フォールバック
+            standardized = {"days_until_maturity": 730}
+            
+        print(f"[standardize_bond_maturity_arguments] Standardized output: {standardized}")
+        return standardized
+        
+    except Exception as e:
+        print(f"[standardize_bond_maturity_arguments] Error: {e}")
+        # フォールバック: 簡単なルールベース
+        if "2 year" in raw_input.lower() or "2年" in raw_input:
+            return {"days_until_maturity": 730}
+        elif "1 year" in raw_input.lower() or "1年" in raw_input:
+            return {"days_until_maturity": 365}
+        else:
+            return {"days_until_maturity": 365}  # デフォルト
 
 if __name__ == "__main__":
     import uvicorn
