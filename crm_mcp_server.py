@@ -96,10 +96,16 @@ async def mcp_endpoint(request: MCPRequest):
                 )
             
             # 統一処理: MCPResponseかどうかで分岐
+            logger.info(f"[DEBUG] Tool result type: {type(result)}")
+            logger.info(f"[DEBUG] Tool result: {result}")
+            
             if isinstance(result, MCPResponse):
+                logger.info(f"[DEBUG] MCPResponse detected")
+                logger.info(f"[DEBUG] MCPResponse.debug_response: {result.debug_response}")
                 result.id = request.id
                 return result
             else:
+                logger.info(f"[DEBUG] Non-MCPResponse detected, wrapping...")
                 return MCPResponse(
                     id=request.id,
                     result=result
@@ -455,9 +461,14 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     }
     
     print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers")
+    print(f"[search_customers_by_bond_maturity] tool_debug: {tool_debug}")
     print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
     
-    return MCPResponse(result=customers, debug_response=tool_debug)
+    mcp_response = MCPResponse(result=customers, debug_response=tool_debug)
+    print(f"[search_customers_by_bond_maturity] Created MCPResponse: {mcp_response}")
+    print(f"[search_customers_by_bond_maturity] MCPResponse.debug_response: {mcp_response.debug_response}")
+    
+    return mcp_response
 
 async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str]:
     """債券満期日検索の引数を標準化（LLMベース）"""
