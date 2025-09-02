@@ -51,7 +51,7 @@ class MCPResponse(BaseModel):
     id: Optional[int] = None
     result: Any = None
     error: Optional[str] = None
-    debug_info: Optional[Dict[str, Any]] = None
+    debug_response: Optional[Dict[str, Any]] = None
 
 def get_db_connection():
     """PostgreSQLデータベース接続"""
@@ -85,11 +85,6 @@ async def mcp_endpoint(request: MCPRequest):
                 result = await get_customer_holdings(arguments)
             elif tool_name == "search_customers_by_bond_maturity":
                 result = await search_customers_by_bond_maturity(arguments)
-                return MCPResponse(
-                    id=request.id,
-                    result=result["result"],
-                    debug_info=result["debug_info"]
-                )
             elif tool_name == "search_sales_notes":
                 result = await search_sales_notes(arguments)
             elif tool_name == "get_cash_inflows":
@@ -98,6 +93,16 @@ async def mcp_endpoint(request: MCPRequest):
                 return MCPResponse(
                     id=request.id,
                     error=f"Unknown tool: {tool_name}"
+                )
+            
+            # 統一処理: MCPResponseかどうかで分岐
+            if isinstance(result, MCPResponse):
+                result.id = request.id
+                return result
+            else:
+                return MCPResponse(
+                    id=request.id,
+                    result=result
                 )
             
         elif method == "tools/list":
@@ -343,8 +348,9 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Params type: {type(params)}")
     
     # 引数標準化処理（不定形 → 標準形式）
-    standardized_params = await standardize_bond_maturity_arguments(str(params))
+    standardized_params, full_prompt_text = await standardize_bond_maturity_arguments(str(params))
     print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
+    print(f"[search_customers_by_bond_maturity] Full prompt text: {full_prompt_text[:200]}...")
     
     days_until_maturity = standardized_params.get("days_until_maturity")
     maturity_date_from = standardized_params.get("maturity_date_from")
@@ -436,27 +442,24 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "product_name": row['product_name'],
             "product_type": row['product_type']
         })
+    execution_time = time.time() - start_time
     
-    result = {
-        "result": customers,
-        "debug_info": {
-            "tool_name": "search_customers_by_bond_maturity",
-            "executed_query": query,
-            "query_params": query_params,
-            "input_params": params,
-            "standardized_params": standardized_params,
-            "execution_time_ms": round(execution_time * 1000, 2),
-            "rows_found": len(customers),
-            "timestamp": datetime.now().isoformat()
-        }
+    # tool_debug情報作成
+    tool_debug = {
+        "executed_query": executed_query,
+        "query_parameters": query_params,
+        "standardized_params": standardized_params,
+        "standardize_prompt": full_prompt_text,
+        "execution_time_ms": round(execution_time * 1000, 2),
+        "results_count": len(customers)
     }
     
     print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers")
     print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
     
-    return result
+    return MCPResponse(result=customers, debug_response=tool_debug)
 
-async def standardize_bond_maturity_arguments(raw_input: str) -> Dict[str, Any]:
+async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str]:
     """債券満期日検索の引数を標準化（LLMベース）"""
     print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
     
@@ -477,6 +480,9 @@ async def standardize_bond_maturity_arguments(raw_input: str) -> Dict[str, Any]:
 
 どんな形式の入力でも強引に標準形式に変換してください。
 JSON形式のみで回答してください。"""
+
+    # 合成プロンプトテキスト作成
+    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
 
     print(f"[standardize_bond_maturity_arguments] === LLM CALL START ===")
     print(f"[standardize_bond_maturity_arguments] System Prompt:")
@@ -525,7 +531,7 @@ JSON形式のみで回答してください。"""
     
     standardized = json_lib.loads(extracted_json)
     print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
-    return standardized
+    return standardized, full_prompt_text
 
 if __name__ == "__main__":
     import uvicorn
