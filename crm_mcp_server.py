@@ -14,6 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import boto3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # Bedrock設定
 bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1')
