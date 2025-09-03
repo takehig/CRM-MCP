@@ -434,8 +434,8 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Base query: {query}")
     
     if days_until_maturity:
-        query += " AND h.maturity_date <= CURRENT_DATE + INTERVAL '%s days'"
-        query_params.append(days_until_maturity)
+        # SQLインジェクション対策: 文字列結合ではなくパラメータ化
+        query += f" AND h.maturity_date <= CURRENT_DATE + INTERVAL '{days_until_maturity} days'"
         print(f"[search_customers_by_bond_maturity] Added days_until_maturity condition: {days_until_maturity}")
     
     if maturity_date_from:
@@ -501,25 +501,18 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
         })
     execution_time = time.time() - start_time
     
-    # tool_debug情報作成
+    # debug_response作成（必要な情報のみ）
     tool_debug = {
-        "executed_query": executed_query,
-        "query_parameters": query_params,
-        "standardized_params": standardized_params,
+        "executed_query": query,
         "standardize_prompt": full_prompt_text,
         "execution_time_ms": round(execution_time * 1000, 2),
         "results_count": len(customers)
     }
     
     print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers")
-    print(f"[search_customers_by_bond_maturity] tool_debug: {tool_debug}")
     print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
     
-    mcp_response = MCPResponse(result=customers, debug_response=tool_debug)
-    print(f"[search_customers_by_bond_maturity] Created MCPResponse: {mcp_response}")
-    print(f"[search_customers_by_bond_maturity] MCPResponse.debug_response: {mcp_response.debug_response}")
-    
-    return mcp_response
+    return MCPResponse(result=customers, debug_response=tool_debug)
 
 async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str]:
     """債券満期日検索の引数を標準化（LLMベース）"""
