@@ -70,14 +70,25 @@ async def health_check():
 @app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
     """標準MCPプロトコル対応エンドポイント"""
+    print(f"[MCP_ENDPOINT] === REQUEST START ===")
+    print(f"[MCP_ENDPOINT] Request received: {request}")
+    print(f"[MCP_ENDPOINT] Request method: {request.method}")
+    print(f"[MCP_ENDPOINT] Request params: {request.params}")
+    
     try:
+        print(f"[MCP_ENDPOINT] Entering try block")
         method = request.method
+        print(f"[MCP_ENDPOINT] Method extracted: {method}")
         params = request.params
+        print(f"[MCP_ENDPOINT] Params extracted: {params}")
         
         if method == "tools/call":
+            print(f"[MCP_ENDPOINT] Processing tools/call")
             # 標準MCPプロトコル: tools/call
             tool_name = params.get("name")
+            print(f"[MCP_ENDPOINT] Tool name: {tool_name}")
             arguments = params.get("arguments", {})
+            print(f"[MCP_ENDPOINT] Arguments: {arguments}")
             
             if tool_name == "search_customers":
                 print(f"[MCP_ENDPOINT] Calling search_customers")
