@@ -455,7 +455,12 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Final query: {query}")
     print(f"[search_customers_by_bond_maturity] Final query_params: {query_params}")
     
-    cursor.execute(query, query_params)
+    # SQL実行（空パラメータ対策）
+    if query_params:
+        cursor.execute(query, query_params)
+    else:
+        cursor.execute(query)
+    
     results = cursor.fetchall()
     
     # デバッグ: 実際のクエリ結果を詳細ログ
