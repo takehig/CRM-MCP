@@ -80,15 +80,25 @@ async def mcp_endpoint(request: MCPRequest):
             arguments = params.get("arguments", {})
             
             if tool_name == "search_customers":
+                print(f"[MCP_ENDPOINT] Calling search_customers")
                 result = await search_customers(arguments)
+                print(f"[MCP_ENDPOINT] search_customers returned: {type(result)}")
             elif tool_name == "get_customer_holdings":
+                print(f"[MCP_ENDPOINT] Calling get_customer_holdings")
                 result = await get_customer_holdings(arguments)
+                print(f"[MCP_ENDPOINT] get_customer_holdings returned: {type(result)}")
             elif tool_name == "search_customers_by_bond_maturity":
+                print(f"[MCP_ENDPOINT] Calling search_customers_by_bond_maturity")
                 result = await search_customers_by_bond_maturity(arguments)
+                print(f"[MCP_ENDPOINT] search_customers_by_bond_maturity returned: {type(result)}")
             elif tool_name == "search_sales_notes":
+                print(f"[MCP_ENDPOINT] Calling search_sales_notes")
                 result = await search_sales_notes(arguments)
+                print(f"[MCP_ENDPOINT] search_sales_notes returned: {type(result)}")
             elif tool_name == "get_cash_inflows":
+                print(f"[MCP_ENDPOINT] Calling get_cash_inflows")
                 result = await get_cash_inflows(arguments)
+                print(f"[MCP_ENDPOINT] get_cash_inflows returned: {type(result)}")
             else:
                 return MCPResponse(
                     id=request.id,
