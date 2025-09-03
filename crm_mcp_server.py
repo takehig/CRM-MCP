@@ -13,8 +13,75 @@ from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import boto3
+
+# Bedrock設定
+bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1')
+
+async def call_claude(system_prompt: str, user_message: str) -> str:
+    """Claude API呼び出し"""
+    try:
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 4000,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_message}]
+        }
+        
+        response = bedrock_client.invoke_model(
+            modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+            body=json.dumps(body)
+        )
+        
+        response_body = json.loads(response['body'].read())
+        return response_body['content'][0]['text']
+    except Exception as e:
+        logger.error(f"Claude API error: {e}")
+        return "{}"
+
+async def standardize_customer_holdings_arguments(text_input: str) -> Dict[str, Any]:
+    """顧客保有商品検索の条件を正規化"""
+    system_prompt = """顧客保有商品検索の条件を正規化してください。
+
+入力テキストから以下を抽出:
+- 顧客ID（複数可能）
+- 商品タイプフィルター
+- 複数顧客の場合はOR条件として統合
+
+JSON形式で回答:
+{"customer_ids": ["ID1", "ID2"], "product_type_filter": "タイプ", "search_logic": "OR条件の説明"}
+
+例:
+- "顧客ID: C001, C002" → {"customer_ids": ["C001", "C002"], "product_type_filter": "", "search_logic": "複数顧客のOR検索"}
+- "C001の債券" → {"customer_ids": ["C001"], "product_type_filter": "債券", "search_logic": "単一顧客の債券フィルター"}"""
+    
+    try:
+        response = await call_claude(system_prompt, text_input)
+        return json.loads(response)
+    except:
+        return {"customer_ids": [], "product_type_filter": "", "search_logic": "解析失敗"}
+
+async def standardize_product_details_arguments(text_input: str) -> Dict[str, Any]:
+    """商品詳細検索の条件を正規化"""
+    system_prompt = """商品詳細検索の条件を正規化してください。
+
+入力テキストから以下を抽出:
+- 商品コード（複数可能）
+- 商品名での検索
+- 複数商品の場合はOR条件として統合
+
+JSON形式で回答:
+{"product_codes": ["CODE1", "CODE2"], "product_names": ["名前1"], "search_logic": "OR条件の説明"}
+
+例:
+- "商品コード: JP001, JP002" → {"product_codes": ["JP001", "JP002"], "product_names": [], "search_logic": "複数商品コードのOR検索"}
+- "日本国債" → {"product_codes": [], "product_names": ["日本国債"], "search_logic": "商品名での検索"}"""
+    
+    try:
+        response = await call_claude(system_prompt, text_input)
+        return json.loads(response)
+    except:
+        return {"product_codes": [], "product_names": [], "search_logic": "解析失敗"}
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -104,31 +171,21 @@ async def mcp_endpoint(request: MCPRequest):
             arguments = params.get("arguments", {})
             print(f"[MCP_ENDPOINT] Arguments: {arguments}")
             
-            if tool_name == "search_customers":
-                print(f"[MCP_ENDPOINT] Calling search_customers")
-                progress = "EXECUTING_SEARCH_CUSTOMERS"
-                result = await search_customers(arguments)
-                print(f"[MCP_ENDPOINT] search_customers returned: {type(result)}")
+            if tool_name == "search_customers_by_bond_maturity":
+                print(f"[MCP_ENDPOINT] Calling search_customers_by_bond_maturity")
+                progress = "EXECUTING_SEARCH_CUSTOMERS_BY_BOND_MATURITY"
+                result = await search_customers_by_bond_maturity(arguments)
+                print(f"[MCP_ENDPOINT] search_customers_by_bond_maturity returned: {type(result)}")
             elif tool_name == "get_customer_holdings":
                 print(f"[MCP_ENDPOINT] Calling get_customer_holdings")
                 progress = "EXECUTING_GET_CUSTOMER_HOLDINGS"
                 result = await get_customer_holdings(arguments)
                 print(f"[MCP_ENDPOINT] get_customer_holdings returned: {type(result)}")
-            elif tool_name == "search_customers_by_bond_maturity":
-                print(f"[MCP_ENDPOINT] Calling search_customers_by_bond_maturity")
-                progress = "EXECUTING_SEARCH_CUSTOMERS_BY_BOND_MATURITY"
-                result = await search_customers_by_bond_maturity(arguments)
-                print(f"[MCP_ENDPOINT] search_customers_by_bond_maturity returned: {type(result)}")
-            elif tool_name == "search_sales_notes":
-                print(f"[MCP_ENDPOINT] Calling search_sales_notes")
-                progress = "EXECUTING_SEARCH_SALES_NOTES"
-                result = await search_sales_notes(arguments)
-                print(f"[MCP_ENDPOINT] search_sales_notes returned: {type(result)}")
-            elif tool_name == "get_cash_inflows":
-                print(f"[MCP_ENDPOINT] Calling get_cash_inflows")
-                progress = "EXECUTING_GET_CASH_INFLOWS"
-                result = await get_cash_inflows(arguments)
-                print(f"[MCP_ENDPOINT] get_cash_inflows returned: {type(result)}")
+            elif tool_name == "get_product_details":
+                print(f"[MCP_ENDPOINT] Calling get_product_details")
+                progress = "EXECUTING_GET_PRODUCT_DETAILS"
+                result = await get_product_details(arguments)
+                print(f"[MCP_ENDPOINT] get_product_details returned: {type(result)}")
             else:
                 return MCPResponse(
                     id=request.id,
@@ -187,32 +244,31 @@ async def mcp_endpoint(request: MCPRequest):
 
 @app.get("/tools/descriptions")
 async def get_tool_descriptions():
-    """AIChat用ツール情報（usage_context付き）"""
+    """AIChat用ツール情報（3ツール・text_input対応）"""
     return {
         "tools": [
             {
-                "name": "search_customers",
-                "description": "顧客情報を検索します",
-                "usage_context": "顧客を探したい、特定の顧客情報を調べたい、顧客名や属性で検索したい時に使用",
+                "name": "search_customers_by_bond_maturity",
+                "description": "債券の満期日条件で顧客を検索",
+                "usage_context": "満期が近い債券保有顧客を調べたい、特定期間内に満期を迎える債券の顧客を探したい時に使用",
                 "parameters": {
-                    "query": {"type": "string", "description": "検索キーワード"}
+                    "text_input": {"type": "string", "description": "満期条件のテキスト（例：2年以内、6ヶ月以内）"}
                 }
             },
             {
                 "name": "get_customer_holdings",
-                "description": "顧客の保有商品情報を取得します",
+                "description": "顧客の保有商品情報を取得",
                 "usage_context": "特定の顧客が何を保有しているか知りたい、顧客のポートフォリオを確認したい時に使用",
                 "parameters": {
-                    "customer_id": {"type": "string", "description": "顧客ID", "required": True}
+                    "text_input": {"type": "string", "description": "顧客指定のテキスト（顧客ID、顧客名など）"}
                 }
             },
             {
-                "name": "search_customers_by_bond_maturity",
-                "description": "債券の満期日条件で顧客を検索します",
-                "usage_context": "満期が近い債券を保有している顧客を調べたい、債券満期に関する顧客分析をしたい時に使用",
+                "name": "get_product_details",
+                "description": "特定商品の詳細情報を取得",
+                "usage_context": "商品について詳しく知りたい、商品コードや商品名から詳細を調べたい時に使用",
                 "parameters": {
-                    "days_until_maturity": {"type": "integer", "description": "満期までの日数"},
-                    "months_until_maturity": {"type": "integer", "description": "満期までの月数"}
+                    "text_input": {"type": "string", "description": "商品指定のテキスト（商品コード、商品名など）"}
                 }
             }
         ]
@@ -311,16 +367,47 @@ async def search_customers(params: Dict[str, Any]):
     return MCPResponse(result=result)
 
 async def get_customer_holdings(params: Dict[str, Any]):
-    """顧客保有商品取得"""
-    customer_id = params.get("customer_id")
-    if not customer_id:
-        raise HTTPException(status_code=400, detail="customer_id is required")
+    """顧客保有商品取得（text_input対応・LLM正規化）"""
+    text_input = params.get("text_input", "")
+    if not text_input:
+        raise HTTPException(status_code=400, detail="text_input is required")
+    
+    # LLM正規化処理
+    normalized_params = await standardize_customer_holdings_arguments(text_input)
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    query = """
+    # 正規化されたパラメータでSQL構築
+    customer_ids = normalized_params.get("customer_ids", [])
+    product_type_filter = normalized_params.get("product_type_filter", "")
+    
+    if not customer_ids:
+        return {
+            "success": False,
+            "error": "顧客IDが特定できませんでした",
+            "normalized_params": normalized_params
+        }
+    
+    # OR条件でSQL構築
+    placeholders = ",".join(["%s"] * len(customer_ids))
+    query = f"""
     SELECT h.holding_id, h.quantity, h.unit_price, h.current_price, h.current_value,
+           h.purchase_date, h.customer_id,
+           p.product_code, p.product_name, p.product_type, p.currency
+    FROM holdings h
+    JOIN products p ON h.product_code = p.product_code
+    WHERE h.customer_id IN ({placeholders})
+    """
+    
+    query_params = customer_ids
+    
+    # 商品タイプフィルター追加
+    if product_type_filter:
+        query += " AND p.product_type ILIKE %s"
+        query_params.append(f"%{product_type_filter}%")
+    
+    query += " ORDER BY h.customer_id, p.product_type, h.current_value DESC"
            h.purchase_date, h.maturity_date, h.status,
            p.product_code, p.product_name, p.product_type, p.maturity_date as product_maturity
     FROM holdings h
@@ -628,6 +715,76 @@ JSON形式のみで回答してください。"""
     print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
     return standardized, full_prompt_text
 
-if __name__ == "__main__":
+async def get_product_details(params: Dict[str, Any]):
+    """商品詳細取得（text_input対応・LLM正規化）"""
+    text_input = params.get("text_input", "")
+    if not text_input:
+        raise HTTPException(status_code=400, detail="text_input is required")
+    
+    # LLM正規化処理
+    normalized_params = await standardize_product_details_arguments(text_input)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # 正規化されたパラメータでSQL構築
+    product_codes = normalized_params.get("product_codes", [])
+    product_names = normalized_params.get("product_names", [])
+    
+    conditions = []
+    query_params = []
+    
+    # 商品コード条件
+    if product_codes:
+        placeholders = ",".join(["%s"] * len(product_codes))
+        conditions.append(f"product_code IN ({placeholders})")
+        query_params.extend(product_codes)
+    
+    # 商品名条件
+    if product_names:
+        name_conditions = []
+        for name in product_names:
+            name_conditions.append("product_name ILIKE %s")
+            query_params.append(f"%{name}%")
+        if name_conditions:
+            conditions.append(f"({' OR '.join(name_conditions)})")
+    
+    if not conditions:
+        return {
+            "success": False,
+            "error": "商品コードまたは商品名が特定できませんでした",
+            "normalized_params": normalized_params
+        }
+    
+    query = f"""
+    SELECT product_code, product_name, product_type, currency, description,
+           issue_date, maturity_date, coupon_rate, face_value, market_price,
+           rating, issuer, created_at, updated_at
+    FROM products
+    WHERE {' OR '.join(conditions)}
+    ORDER BY product_type, product_code
+    """
+    
+    try:
+        cursor.execute(query, query_params)
+        results = cursor.fetchall()
+        
+        return {
+            "success": True,
+            "data": [dict(row) for row in results],
+            "count": len(results),
+            "normalized_params": normalized_params,
+            "query_used": query
+        }
+    except Exception as e:
+        logger.error(f"Database error in get_product_details: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "normalized_params": normalized_params
+        }
+    finally:
+        cursor.close()
+        conn.close()
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8004)
