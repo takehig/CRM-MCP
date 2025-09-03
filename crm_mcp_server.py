@@ -290,44 +290,6 @@ async def list_available_tools():
             }
         ]
     }
-async def search_customers(params: Dict[str, Any]):
-    """顧客検索"""
-    name = params.get("name", "")
-    risk_level = params.get("risk_level")
-    limit = params.get("limit", 10)
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    query = "SELECT customer_id, name, email, phone, risk_tolerance, net_worth FROM customers WHERE 1=1"
-    query_params = []
-    
-    if name:
-        query += " AND name ILIKE %s"
-        query_params.append(f"%{name}%")
-    
-    if risk_level:
-        query += " AND risk_tolerance = %s"
-        query_params.append(risk_level)
-    
-    query += f" LIMIT {limit}"
-    
-    cursor.execute(query, query_params)
-    customers = cursor.fetchall()
-    conn.close()
-    
-    result = []
-    for customer in customers:
-        result.append({
-            "id": customer['customer_id'],
-            "name": customer['name'],
-            "email": customer['email'],
-            "phone": customer['phone'],
-            "risk_level": customer['risk_tolerance'],
-            "total_assets": customer['net_worth']
-        })
-    
-    return MCPResponse(result=result)
 
 async def get_customer_holdings(params: Dict[str, Any]):
     """顧客保有商品取得（text_input対応・LLM正規化）"""
