@@ -185,6 +185,39 @@ async def mcp_endpoint(request: MCPRequest):
             error=str(e)
         )
 
+@app.get("/tools/descriptions")
+async def get_tool_descriptions():
+    """AIChat用ツール情報（usage_context付き）"""
+    return {
+        "tools": [
+            {
+                "name": "search_customers",
+                "description": "顧客情報を検索します",
+                "usage_context": "顧客を探したい、特定の顧客情報を調べたい、顧客名や属性で検索したい時に使用",
+                "parameters": {
+                    "query": {"type": "string", "description": "検索キーワード"}
+                }
+            },
+            {
+                "name": "get_customer_holdings",
+                "description": "顧客の保有商品情報を取得します",
+                "usage_context": "特定の顧客が何を保有しているか知りたい、顧客のポートフォリオを確認したい時に使用",
+                "parameters": {
+                    "customer_id": {"type": "string", "description": "顧客ID", "required": True}
+                }
+            },
+            {
+                "name": "search_customers_by_bond_maturity",
+                "description": "債券の満期日条件で顧客を検索します",
+                "usage_context": "満期が近い債券を保有している顧客を調べたい、債券満期に関する顧客分析をしたい時に使用",
+                "parameters": {
+                    "days_until_maturity": {"type": "integer", "description": "満期までの日数"},
+                    "months_until_maturity": {"type": "integer", "description": "満期までの月数"}
+                }
+            }
+        ]
+    }
+
 @app.get("/tools")
 async def list_available_tools():
     """MCPプロトコル準拠のツール一覧"""
