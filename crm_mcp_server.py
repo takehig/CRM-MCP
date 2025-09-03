@@ -333,14 +333,8 @@ async def get_customer_holdings(params: Dict[str, Any]):
         query_params.append(f"%{product_type_filter}%")
     
     query += " ORDER BY h.customer_id, p.product_type, h.current_value DESC"
-           h.purchase_date, h.maturity_date, h.status,
-           p.product_code, p.product_name, p.product_type, p.maturity_date as product_maturity
-    FROM holdings h
-    LEFT JOIN products p ON h.product_id = p.product_id
-    WHERE h.customer_id = %s
-    """
     
-    cursor.execute(query, (customer_id,))
+    cursor.execute(query, query_params)
     holdings = cursor.fetchall()
     conn.close()
     
