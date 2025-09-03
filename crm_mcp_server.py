@@ -70,6 +70,12 @@ async def health_check():
 @app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
     """標準MCPプロトコル対応エンドポイント"""
+    progress = "INIT"
+    method = None
+    params = None
+    tool_name = None
+    arguments = None
+    
     print(f"[MCP_ENDPOINT] === REQUEST START ===")
     print(f"[MCP_ENDPOINT] Request received: {request}")
     print(f"[MCP_ENDPOINT] Request method: {request.method}")
@@ -77,16 +83,24 @@ async def mcp_endpoint(request: MCPRequest):
     
     try:
         print(f"[MCP_ENDPOINT] Entering try block")
+        progress = "EXTRACTING_METHOD"
         method = request.method
         print(f"[MCP_ENDPOINT] Method extracted: {method}")
+        
+        progress = "EXTRACTING_PARAMS"
         params = request.params
         print(f"[MCP_ENDPOINT] Params extracted: {params}")
         
         if method == "tools/call":
             print(f"[MCP_ENDPOINT] Processing tools/call")
+            progress = "TOOLS_CALL_PROCESSING"
+            
             # 標準MCPプロトコル: tools/call
+            progress = "EXTRACTING_TOOL_NAME"
             tool_name = params.get("name")
             print(f"[MCP_ENDPOINT] Tool name: {tool_name}")
+            
+            progress = "EXTRACTING_ARGUMENTS"
             arguments = params.get("arguments", {})
             print(f"[MCP_ENDPOINT] Arguments: {arguments}")
             
@@ -152,7 +166,18 @@ async def mcp_endpoint(request: MCPRequest):
             )
             
     except Exception as e:
-        logger.error(f"[CUSTOM_MCP_ERROR] Exception in mcp_endpoint: {e}")
+        print(f"[MCP_ENDPOINT] EXCEPTION CAUGHT!")
+        print(f"[MCP_ENDPOINT] Progress: {progress}")
+        print(f"[MCP_ENDPOINT] Method: {method}")
+        print(f"[MCP_ENDPOINT] Params: {params}")
+        print(f"[MCP_ENDPOINT] Tool name: {tool_name}")
+        print(f"[MCP_ENDPOINT] Arguments: {arguments}")
+        print(f"[MCP_ENDPOINT] Exception type: {type(e)}")
+        print(f"[MCP_ENDPOINT] Exception message: {str(e)}")
+        import traceback
+        print(f"[MCP_ENDPOINT] Traceback: {traceback.format_exc()}")
+        
+        logger.error(f"[CUSTOM_MCP_ERROR] Exception in mcp_endpoint at {progress}: {e}")
         return MCPResponse(
             id=request.id,
             error=str(e)
