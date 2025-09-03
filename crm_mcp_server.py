@@ -131,7 +131,7 @@ async def mcp_endpoint(request: MCPRequest):
             result = await list_available_tools()
             return MCPResponse(
                 id=request.id,
-                result=result.result
+                result=result
             )
             
         else:
