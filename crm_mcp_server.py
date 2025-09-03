@@ -181,11 +181,6 @@ async def mcp_endpoint(request: MCPRequest):
                 progress = "EXECUTING_GET_CUSTOMER_HOLDINGS"
                 result = await get_customer_holdings(arguments)
                 print(f"[MCP_ENDPOINT] get_customer_holdings returned: {type(result)}")
-            elif tool_name == "get_product_details":
-                print(f"[MCP_ENDPOINT] Calling get_product_details")
-                progress = "EXECUTING_GET_PRODUCT_DETAILS"
-                result = await get_product_details(arguments)
-                print(f"[MCP_ENDPOINT] get_product_details returned: {type(result)}")
             else:
                 return MCPResponse(
                     id=request.id,
@@ -244,7 +239,7 @@ async def mcp_endpoint(request: MCPRequest):
 
 @app.get("/tools/descriptions")
 async def get_tool_descriptions():
-    """AIChat用ツール情報（3ツール・text_input対応）"""
+    """AIChat用ツール情報（2ツール・text_input対応）"""
     return {
         "tools": [
             {
@@ -261,14 +256,6 @@ async def get_tool_descriptions():
                 "usage_context": "特定の顧客が何を保有しているか知りたい、顧客のポートフォリオを確認したい時に使用",
                 "parameters": {
                     "text_input": {"type": "string", "description": "顧客指定のテキスト（顧客ID、顧客名など）"}
-                }
-            },
-            {
-                "name": "get_product_details",
-                "description": "特定商品の詳細情報を取得",
-                "usage_context": "商品について詳しく知りたい、商品コードや商品名から詳細を調べたい時に使用",
-                "parameters": {
-                    "text_input": {"type": "string", "description": "商品指定のテキスト（商品コード、商品名など）"}
                 }
             }
         ]
@@ -715,76 +702,6 @@ JSON形式のみで回答してください。"""
     print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
     return standardized, full_prompt_text
 
-async def get_product_details(params: Dict[str, Any]):
-    """商品詳細取得（text_input対応・LLM正規化）"""
-    text_input = params.get("text_input", "")
-    if not text_input:
-        raise HTTPException(status_code=400, detail="text_input is required")
-    
-    # LLM正規化処理
-    normalized_params = await standardize_product_details_arguments(text_input)
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
-    # 正規化されたパラメータでSQL構築
-    product_codes = normalized_params.get("product_codes", [])
-    product_names = normalized_params.get("product_names", [])
-    
-    conditions = []
-    query_params = []
-    
-    # 商品コード条件
-    if product_codes:
-        placeholders = ",".join(["%s"] * len(product_codes))
-        conditions.append(f"product_code IN ({placeholders})")
-        query_params.extend(product_codes)
-    
-    # 商品名条件
-    if product_names:
-        name_conditions = []
-        for name in product_names:
-            name_conditions.append("product_name ILIKE %s")
-            query_params.append(f"%{name}%")
-        if name_conditions:
-            conditions.append(f"({' OR '.join(name_conditions)})")
-    
-    if not conditions:
-        return {
-            "success": False,
-            "error": "商品コードまたは商品名が特定できませんでした",
-            "normalized_params": normalized_params
-        }
-    
-    query = f"""
-    SELECT product_code, product_name, product_type, currency, description,
-           issue_date, maturity_date, coupon_rate, face_value, market_price,
-           rating, issuer, created_at, updated_at
-    FROM products
-    WHERE {' OR '.join(conditions)}
-    ORDER BY product_type, product_code
-    """
-    
-    try:
-        cursor.execute(query, query_params)
-        results = cursor.fetchall()
-        
-        return {
-            "success": True,
-            "data": [dict(row) for row in results],
-            "count": len(results),
-            "normalized_params": normalized_params,
-            "query_used": query
-        }
-    except Exception as e:
-        logger.error(f"Database error in get_product_details: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "normalized_params": normalized_params
-        }
-    finally:
-        cursor.close()
-        conn.close()
+if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8004)
