@@ -106,22 +106,27 @@ async def mcp_endpoint(request: MCPRequest):
             
             if tool_name == "search_customers":
                 print(f"[MCP_ENDPOINT] Calling search_customers")
+                progress = "EXECUTING_SEARCH_CUSTOMERS"
                 result = await search_customers(arguments)
                 print(f"[MCP_ENDPOINT] search_customers returned: {type(result)}")
             elif tool_name == "get_customer_holdings":
                 print(f"[MCP_ENDPOINT] Calling get_customer_holdings")
+                progress = "EXECUTING_GET_CUSTOMER_HOLDINGS"
                 result = await get_customer_holdings(arguments)
                 print(f"[MCP_ENDPOINT] get_customer_holdings returned: {type(result)}")
             elif tool_name == "search_customers_by_bond_maturity":
                 print(f"[MCP_ENDPOINT] Calling search_customers_by_bond_maturity")
+                progress = "EXECUTING_SEARCH_CUSTOMERS_BY_BOND_MATURITY"
                 result = await search_customers_by_bond_maturity(arguments)
                 print(f"[MCP_ENDPOINT] search_customers_by_bond_maturity returned: {type(result)}")
             elif tool_name == "search_sales_notes":
                 print(f"[MCP_ENDPOINT] Calling search_sales_notes")
+                progress = "EXECUTING_SEARCH_SALES_NOTES"
                 result = await search_sales_notes(arguments)
                 print(f"[MCP_ENDPOINT] search_sales_notes returned: {type(result)}")
             elif tool_name == "get_cash_inflows":
                 print(f"[MCP_ENDPOINT] Calling get_cash_inflows")
+                progress = "EXECUTING_GET_CASH_INFLOWS"
                 result = await get_cash_inflows(arguments)
                 print(f"[MCP_ENDPOINT] get_cash_inflows returned: {type(result)}")
             else:
@@ -163,6 +168,7 @@ async def mcp_endpoint(request: MCPRequest):
             
     except Exception as e:
         print(f"[MCP_ENDPOINT] EXCEPTION CAUGHT!")
+        print(f"[MCP_ENDPOINT] Request ID: {request.id}")
         print(f"[MCP_ENDPOINT] Progress: {progress}")
         print(f"[MCP_ENDPOINT] Method: {method}")
         print(f"[MCP_ENDPOINT] Params: {params}")
@@ -173,7 +179,7 @@ async def mcp_endpoint(request: MCPRequest):
         import traceback
         print(f"[MCP_ENDPOINT] Traceback: {traceback.format_exc()}")
         
-        print(f"[CUSTOM_MCP_ERROR] Exception in mcp_endpoint at {progress}: {e}")
+        print(f"[CUSTOM_MCP_ERROR] Request ID {request.id} - Exception in mcp_endpoint at {progress}: {e}")
         return MCPResponse(
             id=request.id,
             error=str(e)
