@@ -59,7 +59,7 @@ def get_db_connection():
         conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except Exception as e:
-        logger.error(f"Database connection failed: {e}")
+        print(f"[ERROR] Database connection failed: {e}")
         raise HTTPException(status_code=500, detail="Database connection failed")
 
 @app.get("/health")
@@ -132,20 +132,16 @@ async def mcp_endpoint(request: MCPRequest):
             
             # 統一処理: MCPResponseかどうかで分岐
             print(f"[MCP_ENDPOINT] Tool result type: {type(result)}")
+            print(f"[MCP_ENDPOINT] Tool result type: {type(result)}")
             print(f"[MCP_ENDPOINT] Tool result: {result}")
-            logger.info(f"[DEBUG] Tool result type: {type(result)}")
-            logger.info(f"[DEBUG] Tool result: {result}")
             
             if isinstance(result, MCPResponse):
                 print(f"[MCP_ENDPOINT] MCPResponse detected")
                 print(f"[MCP_ENDPOINT] MCPResponse.debug_response: {result.debug_response}")
-                logger.info(f"[DEBUG] MCPResponse detected")
-                logger.info(f"[DEBUG] MCPResponse.debug_response: {result.debug_response}")
                 result.id = request.id
                 return result
             else:
                 print(f"[MCP_ENDPOINT] Non-MCPResponse detected, wrapping...")
-                logger.info(f"[DEBUG] Non-MCPResponse detected, wrapping...")
                 return MCPResponse(
                     id=request.id,
                     result=result
@@ -177,7 +173,7 @@ async def mcp_endpoint(request: MCPRequest):
         import traceback
         print(f"[MCP_ENDPOINT] Traceback: {traceback.format_exc()}")
         
-        logger.error(f"[CUSTOM_MCP_ERROR] Exception in mcp_endpoint at {progress}: {e}")
+        print(f"[CUSTOM_MCP_ERROR] Exception in mcp_endpoint at {progress}: {e}")
         return MCPResponse(
             id=request.id,
             error=str(e)
