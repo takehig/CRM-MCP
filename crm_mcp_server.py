@@ -263,17 +263,18 @@ async def get_tool_descriptions():
 
 @app.get("/tools")
 async def list_available_tools():
-    """MCPプロトコル準拠のツール一覧"""
+    """MCPプロトコル準拠のツール一覧（2ツール）"""
     return {
         "tools": [
             {
-                "name": "search_customers",
-                "description": "顧客情報を検索します",
+                "name": "search_customers_by_bond_maturity",
+                "description": "債券の満期日条件で顧客を検索します（満期の近い債券保有者など）",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "検索キーワード"}
-                    }
+                        "text_input": {"type": "string", "description": "満期条件のテキスト（例：2年以内、6ヶ月以内）"}
+                    },
+                    "required": ["text_input"]
                 }
             },
             {
@@ -282,34 +283,9 @@ async def list_available_tools():
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "customer_id": {"type": "string", "description": "顧客ID"}
+                        "text_input": {"type": "string", "description": "顧客指定のテキスト（顧客ID、顧客名など）"}
                     },
-                    "required": ["customer_id"]
-                }
-            },
-            {
-                "name": "search_customers_by_bond_maturity",
-                "description": "債券の満期日条件で顧客を検索します（満期の近い債券保有者など）",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "days_until_maturity": {"type": "integer", "description": "満期までの日数（例：90日以内なら90）"},
-                        "maturity_date_from": {"type": "string", "description": "満期日開始（YYYY-MM-DD形式）"},
-                        "maturity_date_to": {"type": "string", "description": "満期日終了（YYYY-MM-DD形式）"}
-                    }
-                }
-            },
-            {
-                "name": "search_customers_by_maturity",
-                "description": "満期日条件で顧客を検索します（満期の近い債券保有者など）",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "days_until_maturity": {"type": "integer", "description": "満期までの日数（例：90日以内）"},
-                        "maturity_date_from": {"type": "string", "description": "満期日開始（YYYY-MM-DD形式）"},
-                        "maturity_date_to": {"type": "string", "description": "満期日終了（YYYY-MM-DD形式）"},
-                        "product_type": {"type": "string", "description": "商品タイプ（債券など）"}
-                    }
+                    "required": ["text_input"]
                 }
             }
         ]
