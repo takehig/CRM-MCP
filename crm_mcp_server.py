@@ -467,6 +467,24 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG ===")
     print(f"[search_customers_by_bond_maturity] Raw SQL executed: {query}")
     print(f"[search_customers_by_bond_maturity] Query parameters: {query_params}")
+    print(f"[search_customers_by_bond_maturity] Query parameters type: {type(query_params)}")
+    print(f"[search_customers_by_bond_maturity] Query parameters length: {len(query_params)}")
+    
+    # cursor.mogrifyのエラー詳細調査
+    try:
+        if query_params:
+            executed_query = cursor.mogrify(query, query_params).decode('utf-8')
+            print(f"[search_customers_by_bond_maturity] mogrify with params success: {executed_query}")
+        else:
+            # 空パラメータの場合の対処
+            executed_query = cursor.mogrify(query).decode('utf-8')
+            print(f"[search_customers_by_bond_maturity] mogrify without params success: {executed_query}")
+    except Exception as mogrify_error:
+        print(f"[search_customers_by_bond_maturity] mogrify error: {mogrify_error}")
+        print(f"[search_customers_by_bond_maturity] mogrify error type: {type(mogrify_error)}")
+        executed_query = f"MOGRIFY_ERROR: {query} (params: {query_params})"
+    
+    print(f"[search_customers_by_bond_maturity] Final executed_query: {executed_query}")
     print(f"[search_customers_by_bond_maturity] Raw results count: {len(results)}")
     print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG END ===")
     
