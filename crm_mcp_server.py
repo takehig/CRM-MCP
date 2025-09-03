@@ -152,7 +152,7 @@ async def mcp_endpoint(request: MCPRequest):
             )
             
     except Exception as e:
-        logger.error(f"MCP error: {e}")
+        logger.error(f"[CUSTOM_MCP_ERROR] Exception in mcp_endpoint: {e}")
         return MCPResponse(
             id=request.id,
             error=str(e)
