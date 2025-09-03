@@ -96,15 +96,20 @@ async def mcp_endpoint(request: MCPRequest):
                 )
             
             # 統一処理: MCPResponseかどうかで分岐
+            print(f"[MCP_ENDPOINT] Tool result type: {type(result)}")
+            print(f"[MCP_ENDPOINT] Tool result: {result}")
             logger.info(f"[DEBUG] Tool result type: {type(result)}")
             logger.info(f"[DEBUG] Tool result: {result}")
             
             if isinstance(result, MCPResponse):
+                print(f"[MCP_ENDPOINT] MCPResponse detected")
+                print(f"[MCP_ENDPOINT] MCPResponse.debug_response: {result.debug_response}")
                 logger.info(f"[DEBUG] MCPResponse detected")
                 logger.info(f"[DEBUG] MCPResponse.debug_response: {result.debug_response}")
                 result.id = request.id
                 return result
             else:
+                print(f"[MCP_ENDPOINT] Non-MCPResponse detected, wrapping...")
                 logger.info(f"[DEBUG] Non-MCPResponse detected, wrapping...")
                 return MCPResponse(
                     id=request.id,
