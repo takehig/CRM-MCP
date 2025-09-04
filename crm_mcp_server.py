@@ -41,7 +41,7 @@ async def call_claude(system_prompt: str, user_message: str) -> str:
         logger.error(f"Claude API error: {e}")
         return "{}"
 
-async def standardize_customer_holdings_arguments(text_input: str) -> Dict[str, Any]:
+async def standardize_customer_holdings_arguments(text_input: str) -> tuple[Dict[str, Any], str, str]:
     """顧客保有商品検索の条件を正規化"""
     system_prompt = """顧客保有商品検索の条件を正規化してください。
 
@@ -57,11 +57,16 @@ JSON形式で回答:
 - "顧客ID: C001, C002" → {"customer_ids": ["C001", "C002"], "product_type_filter": "", "search_logic": "複数顧客のOR検索"}
 - "C001の債券" → {"customer_ids": ["C001"], "product_type_filter": "債券", "search_logic": "単一顧客の債券フィルター"}"""
     
+    # 合成プロンプトテキスト作成
+    full_prompt_text = f"{system_prompt}\n\nUser Input: {text_input}"
+    
     try:
         response = await call_claude(system_prompt, text_input)
-        return json.loads(response)
-    except:
-        return {"customer_ids": [], "product_type_filter": "", "search_logic": "解析失敗"}
+        standardized = json.loads(response)
+        return standardized, full_prompt_text, response
+    except Exception as e:
+        error_response = f"解析失敗: {str(e)}"
+        return {"customer_ids": [], "product_type_filter": "", "search_logic": "解析失敗"}, full_prompt_text, error_response
 
 async def standardize_product_details_arguments(text_input: str) -> Dict[str, Any]:
     """商品詳細検索の条件を正規化"""
@@ -295,12 +300,21 @@ async def list_available_tools():
 
 async def get_customer_holdings(params: Dict[str, Any]):
     """顧客保有商品取得（text_input対応・LLM正規化）"""
+    import time
+    start_time = time.time()
+    
+    print(f"[get_customer_holdings] === FUNCTION START ===")
+    print(f"[get_customer_holdings] Received raw params: {params}")
+    
     text_input = params.get("text_input", "")
     if not text_input:
         raise HTTPException(status_code=400, detail="text_input is required")
     
     # LLM正規化処理
-    normalized_params = await standardize_customer_holdings_arguments(text_input)
+    normalized_params, full_prompt_text, standardize_response = await standardize_customer_holdings_arguments(text_input)
+    print(f"[get_customer_holdings] Normalized params: {normalized_params}")
+    print(f"[get_customer_holdings] Full prompt text: {full_prompt_text[:200]}...")
+    print(f"[get_customer_holdings] Standardize response: {standardize_response[:200]}...")
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -336,8 +350,14 @@ async def get_customer_holdings(params: Dict[str, Any]):
     
     query += " ORDER BY h.customer_id, p.product_type, h.current_value DESC"
     
+    print(f"[get_customer_holdings] Final query: {query}")
+    print(f"[get_customer_holdings] Final query_params: {query_params}")
+    
     cursor.execute(query, query_params)
     holdings = cursor.fetchall()
+    
+    print(f"[get_customer_holdings] Query executed, found {len(holdings)} rows")
+    
     conn.close()
     
     result = []
@@ -349,13 +369,26 @@ async def get_customer_holdings(params: Dict[str, Any]):
             "purchase_price": float(holding['unit_price']) if holding['unit_price'] else 0,
             "current_value": float(holding['current_value']) if holding['current_value'] else 0,
             "purchase_date": holding['purchase_date'].isoformat() if holding['purchase_date'] else None,
-            "maturity_date": holding['maturity_date'].isoformat() if holding['maturity_date'] else None,
             "product_name": holding['product_name'],
-            "product_type": holding['product_type'],
-            "status": holding['status']
+            "product_type": holding['product_type']
         })
     
-    return MCPResponse(result=result)
+    execution_time = time.time() - start_time
+    
+    # debug_response作成（search_customers_by_bond_maturityと同じ構造）
+    tool_debug = {
+        "executed_query": query,
+        "executed_query_results": result,  # SQL実行結果
+        "standardize_prompt": full_prompt_text,
+        "standardize_response": standardize_response,
+        "execution_time_ms": round(execution_time * 1000, 2),
+        "results_count": len(result)
+    }
+    
+    print(f"[get_customer_holdings] Returning result with {len(result)} holdings")
+    print(f"[get_customer_holdings] === FUNCTION END ===")
+    
+    return MCPResponse(result=result, debug_response=tool_debug)
 
 async def search_sales_notes(params: Dict[str, Any]):
     """営業メモ検索"""
