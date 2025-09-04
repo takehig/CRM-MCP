@@ -553,6 +553,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     # debug_response作成（必要な情報のみ）
     tool_debug = {
         "executed_query": query,
+        "executed_query_results": customers,  # SQL実行結果を追加
         "standardize_prompt": full_prompt_text,
         "standardize_response": standardize_response,
         "execution_time_ms": round(execution_time * 1000, 2),
