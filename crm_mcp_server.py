@@ -324,11 +324,24 @@ async def get_customer_holdings(params: Dict[str, Any]):
     product_type_filter = normalized_params.get("product_type_filter", "")
     
     if not customer_ids:
-        return {
-            "success": False,
-            "error": "顧客IDが特定できませんでした",
-            "normalized_params": normalized_params
+        # エラー時もMCPResponseでdebug_responseを返す
+        tool_debug = {
+            "executed_query": "N/A (顧客ID特定失敗)",
+            "executed_query_results": [],
+            "standardize_prompt": full_prompt_text,
+            "standardize_response": standardize_response,
+            "execution_time_ms": round((time.time() - start_time) * 1000, 2),
+            "results_count": 0
         }
+        
+        return MCPResponse(
+            result={
+                "success": False,
+                "error": "顧客IDが特定できませんでした",
+                "normalized_params": normalized_params
+            },
+            debug_response=tool_debug
+        )
     
     # OR条件でSQL構築
     placeholders = ",".join(["%s"] * len(customer_ids))
