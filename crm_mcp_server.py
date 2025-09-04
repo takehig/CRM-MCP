@@ -394,7 +394,7 @@ async def get_customer_holdings(params: Dict[str, Any]):
            h.purchase_date, h.customer_id,
            p.product_code, p.product_name, p.product_type, p.currency
     FROM holdings h
-    JOIN products p ON h.product_code = p.product_code
+    JOIN products p ON h.product_id = p.product_id
     WHERE h.customer_id IN ({placeholders})
     AND p.product_type = 'bond'
     ORDER BY h.customer_id, h.current_value DESC
