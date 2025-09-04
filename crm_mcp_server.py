@@ -293,6 +293,32 @@ async def list_available_tools():
         ]
     }
 
+async def format_customers_to_text(customers_array: List[Dict]) -> str:
+    """債券満期検索結果配列をテキスト形式に変換（Standardizeの逆）"""
+    if not customers_array:
+        return "債券満期検索結果: 該当する顧客はいませんでした。"
+    
+    system_prompt = """債券満期検索の結果配列を、後続のツールが使いやすいシンプルなテキスト形式に変換してください。
+
+以下の形式で出力:
+```
+債券満期検索結果:
+- 顧客ID: 1, 氏名: 伊藤正雄, 満期日: 2026-12-15, 商品: ソフトバンク社債, リスク許容度: moderate
+- 顧客ID: 7, 氏名: 井上和夫, 満期日: 2026-12-15, 商品: ソフトバンク社債, リスク許容度: conservative
+
+合計: 2名の顧客が該当
+```
+
+簡潔で読みやすく、次のツールが顧客情報を理解しやすい形式にしてください。"""
+    
+    try:
+        import json
+        array_text = json.dumps(customers_array, ensure_ascii=False, indent=2)
+        response = await call_claude(system_prompt, array_text)
+        return response
+    except Exception as e:
+        return f"顧客情報のテキスト化に失敗: {str(e)}"
+
 async def format_holdings_to_text(holdings_array: List[Dict]) -> str:
     """保有商品配列をテキスト形式に変換（Standardizeの逆）"""
     if not holdings_array:
@@ -579,72 +605,98 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Final query_params: {query_params}")
     
     # SQL実行（空パラメータ対策）
-    if query_params:
-        cursor.execute(query, query_params)
-    else:
-        cursor.execute(query)
-    
-    results = cursor.fetchall()
-    
-    # デバッグ: 実際のクエリ結果を詳細ログ
-    print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG ===")
-    print(f"[search_customers_by_bond_maturity] Raw SQL executed: {query}")
-    print(f"[search_customers_by_bond_maturity] Query parameters: {query_params}")
-    print(f"[search_customers_by_bond_maturity] Query parameters type: {type(query_params)}")
-    print(f"[search_customers_by_bond_maturity] Query parameters length: {len(query_params)}")
-    
-    # cursor.mogrifyのエラー詳細調査
     try:
         if query_params:
-            executed_query = cursor.mogrify(query, query_params).decode('utf-8')
-            print(f"[search_customers_by_bond_maturity] mogrify with params success: {executed_query}")
+            cursor.execute(query, query_params)
         else:
-            # 空パラメータの場合の対処
-            executed_query = cursor.mogrify(query).decode('utf-8')
-            print(f"[search_customers_by_bond_maturity] mogrify without params success: {executed_query}")
-    except Exception as mogrify_error:
-        print(f"[search_customers_by_bond_maturity] mogrify error: {mogrify_error}")
-        print(f"[search_customers_by_bond_maturity] mogrify error type: {type(mogrify_error)}")
-        executed_query = f"MOGRIFY_ERROR: {query} (params: {query_params})"
-    
-    print(f"[search_customers_by_bond_maturity] Final executed_query: {executed_query}")
-    print(f"[search_customers_by_bond_maturity] Raw results count: {len(results)}")
-    print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG END ===")
-    
-    conn.close()
-    
-    print(f"[search_customers_by_bond_maturity] Query executed, found {len(results)} rows")
-    
-    execution_time = time.time() - start_time
-    
-    customers = []
-    for row in results:
-        customers.append({
-            "customer_id": row['customer_id'],
-            "name": row['name'],
-            "email": row['email'],
-            "phone": row['phone'],
-            "risk_tolerance": row['risk_tolerance'],
-            "maturity_date": row['maturity_date'].isoformat() if row['maturity_date'] else None,
-            "product_name": row['product_name'],
-            "product_type": row['product_type']
-        })
-    execution_time = time.time() - start_time
-    
-    # debug_response作成（必要な情報のみ）
-    tool_debug = {
-        "executed_query": query,
-        "executed_query_results": customers,  # SQL実行結果を追加
-        "standardize_prompt": full_prompt_text,
-        "standardize_response": standardize_response,
-        "execution_time_ms": round(execution_time * 1000, 2),
-        "results_count": len(customers)
-    }
-    
-    print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers")
-    print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
-    
-    return MCPResponse(result=customers, debug_response=tool_debug)
+            cursor.execute(query)
+        
+        results = cursor.fetchall()
+        
+        # デバッグ: 実際のクエリ結果を詳細ログ
+        print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG ===")
+        print(f"[search_customers_by_bond_maturity] Raw SQL executed: {query}")
+        print(f"[search_customers_by_bond_maturity] Query parameters: {query_params}")
+        print(f"[search_customers_by_bond_maturity] Query parameters type: {type(query_params)}")
+        print(f"[search_customers_by_bond_maturity] Query parameters length: {len(query_params)}")
+        
+        # cursor.mogrifyのエラー詳細調査
+        try:
+            if query_params:
+                executed_query = cursor.mogrify(query, query_params).decode('utf-8')
+                print(f"[search_customers_by_bond_maturity] mogrify with params success: {executed_query}")
+            else:
+                # 空パラメータの場合の対処
+                executed_query = cursor.mogrify(query).decode('utf-8')
+                print(f"[search_customers_by_bond_maturity] mogrify without params success: {executed_query}")
+        except Exception as mogrify_error:
+            print(f"[search_customers_by_bond_maturity] mogrify error: {mogrify_error}")
+            print(f"[search_customers_by_bond_maturity] mogrify error type: {type(mogrify_error)}")
+            executed_query = f"MOGRIFY_ERROR: {query} (params: {query_params})"
+        
+        print(f"[search_customers_by_bond_maturity] Final executed_query: {executed_query}")
+        print(f"[search_customers_by_bond_maturity] Raw results count: {len(results)}")
+        print(f"[search_customers_by_bond_maturity] === DATABASE DEBUG END ===")
+        
+        conn.close()
+        
+        print(f"[search_customers_by_bond_maturity] Query executed, found {len(results)} rows")
+        
+        # 配列作成
+        customers = []
+        for row in results:
+            customers.append({
+                "customer_id": row['customer_id'],
+                "name": row['name'],
+                "email": row['email'],
+                "phone": row['phone'],
+                "risk_tolerance": row['risk_tolerance'],
+                "maturity_date": row['maturity_date'].isoformat() if row['maturity_date'] else None,
+                "product_name": row['product_name'],
+                "product_type": row['product_type']
+            })
+        
+        # テキスト化
+        result_text = await format_customers_to_text(customers)
+        
+        execution_time = time.time() - start_time
+        
+        # debug_response作成
+        tool_debug = {
+            "executed_query": query,
+            "executed_query_results": customers,  # デバッグ用は配列
+            "format_prompt": "債券満期検索結果配列をテキスト形式に変換",
+            "format_response": result_text,
+            "standardize_prompt": full_prompt_text,
+            "standardize_response": standardize_response,
+            "execution_time_ms": round(execution_time * 1000, 2),
+            "results_count": len(customers)
+        }
+        
+        print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers as text")
+        print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
+        
+        return MCPResponse(result=result_text, debug_response=tool_debug)
+        
+    except Exception as sql_error:
+        conn.close()
+        error_message = f"SQLエラー: {str(sql_error)}"
+        
+        tool_debug = {
+            "executed_query": query,
+            "executed_query_results": error_message,
+            "format_prompt": "N/A (SQLエラーのため未実行)",
+            "format_response": "N/A (SQLエラーのため未実行)",
+            "standardize_prompt": full_prompt_text,
+            "standardize_response": standardize_response,
+            "execution_time_ms": round((time.time() - start_time) * 1000, 2),
+            "results_count": 0
+        }
+        
+        print(f"[search_customers_by_bond_maturity] SQL Error: {sql_error}")
+        print(f"[search_customers_by_bond_maturity] === FUNCTION END (ERROR) ===")
+        
+        return MCPResponse(result=error_message, debug_response=tool_debug)
 
 async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str, str]:
     """債券満期日検索の引数を標準化（LLMベース）"""
