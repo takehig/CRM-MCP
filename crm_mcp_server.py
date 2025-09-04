@@ -448,9 +448,10 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Params type: {type(params)}")
     
     # 引数標準化処理（不定形 → 標準形式）
-    standardized_params, full_prompt_text = await standardize_bond_maturity_arguments(str(params))
+    standardized_params, full_prompt_text, standardize_response = await standardize_bond_maturity_arguments(str(params))
     print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
     print(f"[search_customers_by_bond_maturity] Full prompt text: {full_prompt_text[:200]}...")
+    print(f"[search_customers_by_bond_maturity] Standardize response: {standardize_response[:200]}...")
     
     days_until_maturity = standardized_params.get("days_until_maturity")
     maturity_date_from = standardized_params.get("maturity_date_from")
@@ -553,6 +554,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     tool_debug = {
         "executed_query": query,
         "standardize_prompt": full_prompt_text,
+        "standardize_response": standardize_response,
         "execution_time_ms": round(execution_time * 1000, 2),
         "results_count": len(customers)
     }
@@ -562,7 +564,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     
     return MCPResponse(result=customers, debug_response=tool_debug)
 
-async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str]:
+async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str, str]:
     """債券満期日検索の引数を標準化（LLMベース）"""
     print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
     
@@ -634,7 +636,7 @@ JSON形式のみで回答してください。"""
     
     standardized = json_lib.loads(extracted_json)
     print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
-    return standardized, full_prompt_text
+    return standardized, full_prompt_text, standardized_text
 
 if __name__ == "__main__":
     import uvicorn
