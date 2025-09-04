@@ -41,7 +41,7 @@ async def call_claude(system_prompt: str, user_message: str) -> str:
         logger.error(f"Claude API error: {e}")
         return "{}"
 
-async def standardize_customer_holdings_arguments(text_input: str) -> tuple[List[str], str, str]:
+async def standardize_customer_holdings_arguments(text_input: str) -> tuple[List[str], str, str, str]:
     """顧客IDのみ抽出に特化"""
     system_prompt = """入力テキストから顧客IDを抽出してください。
 
@@ -57,11 +57,12 @@ JSON配列形式で回答:
     full_prompt_text = f"{system_prompt}\n\nUser Input: {text_input}"
     
     try:
-        response = await call_claude(system_prompt, text_input)
-        customer_ids = json.loads(response)
-        return customer_ids, full_prompt_text, response
+        raw_response = await call_claude(system_prompt, text_input)
+        customer_ids = json.loads(raw_response)
+        return customer_ids, full_prompt_text, raw_response, customer_ids
     except Exception as e:
-        return [], full_prompt_text, f"LLM応答のJSONパース失敗: {str(e)}"
+        error_message = f"LLM応答のJSONパース失敗: {str(e)}"
+        return [], full_prompt_text, raw_response if 'raw_response' in locals() else "LLM呼び出し失敗", error_message
 
 async def standardize_product_details_arguments(text_input: str) -> Dict[str, Any]:
     """商品詳細検索の条件を正規化"""
@@ -358,10 +359,11 @@ async def get_customer_holdings(params: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="text_input is required")
     
     # LLM正規化処理
-    customer_ids, full_prompt_text, standardize_response = await standardize_customer_holdings_arguments(text_input)
+    customer_ids, full_prompt_text, standardize_response, standardize_parameter = await standardize_customer_holdings_arguments(text_input)
     print(f"[get_customer_holdings] Customer IDs: {customer_ids}")
     print(f"[get_customer_holdings] Full prompt text: {full_prompt_text[:200]}...")
     print(f"[get_customer_holdings] Standardize response: {standardize_response[:200]}...")
+    print(f"[get_customer_holdings] Standardize parameter: {standardize_parameter}")
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -371,8 +373,11 @@ async def get_customer_holdings(params: Dict[str, Any]):
         tool_debug = {
             "executed_query": "顧客特定不可のためクエリ未実行",
             "executed_query_results": "顧客特定不可のため実行できませんでした",
+            "format_prompt": "N/A (顧客特定不可のため未実行)",
+            "format_response": "N/A (顧客特定不可のため未実行)",
             "standardize_prompt": full_prompt_text,
             "standardize_response": standardize_response,
+            "standardize_parameter": standardize_parameter,
             "execution_time_ms": round((time.time() - start_time) * 1000, 2),
             "results_count": 0
         }
@@ -435,6 +440,7 @@ async def get_customer_holdings(params: Dict[str, Any]):
             "format_response": result_text,
             "standardize_prompt": full_prompt_text,
             "standardize_response": standardize_response,
+            "standardize_parameter": standardize_parameter,
             "execution_time_ms": round(execution_time * 1000, 2),
             "results_count": len(result_array)
         }
