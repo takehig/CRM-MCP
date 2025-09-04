@@ -293,6 +293,32 @@ async def list_available_tools():
         ]
     }
 
+async def format_holdings_to_text(holdings_array: List[Dict]) -> str:
+    """保有商品配列をテキスト形式に変換（Standardizeの逆）"""
+    if not holdings_array:
+        return "保有商品情報: 該当する保有商品はありませんでした。"
+    
+    system_prompt = """保有商品の検索結果配列を、後続のツールが使いやすいシンプルなテキスト形式に変換してください。
+
+以下の形式で出力:
+```
+保有商品情報:
+- 顧客ID: 1, 商品: ソフトバンク社債, 数量: 1,000,000, 現在価値: 1,050,000円
+- 顧客ID: 7, 商品: 日本国債, 数量: 500,000, 現在価値: 525,000円
+
+合計: 2件の保有商品
+```
+
+簡潔で読みやすく、次のツールが理解しやすい形式にしてください。"""
+    
+    try:
+        import json
+        array_text = json.dumps(holdings_array, ensure_ascii=False, indent=2)
+        response = await call_claude(system_prompt, array_text)
+        return response
+    except Exception as e:
+        return f"保有商品情報のテキスト化に失敗: {str(e)}"
+
 async def get_customer_holdings(params: Dict[str, Any]):
     """顧客保有商品取得（text_input対応・LLM正規化）"""
     import time
@@ -348,42 +374,69 @@ async def get_customer_holdings(params: Dict[str, Any]):
     print(f"[get_customer_holdings] Final query: {query}")
     print(f"[get_customer_holdings] Final query_params: {query_params}")
     
-    cursor.execute(query, query_params)
-    holdings = cursor.fetchall()
-    
-    print(f"[get_customer_holdings] Query executed, found {len(holdings)} rows")
-    
-    conn.close()
-    
-    result = []
-    for holding in holdings:
-        result.append({
-            "id": holding['holding_id'],
-            "product_code": holding['product_code'],
-            "quantity": float(holding['quantity']) if holding['quantity'] else 0,
-            "purchase_price": float(holding['unit_price']) if holding['unit_price'] else 0,
-            "current_value": float(holding['current_value']) if holding['current_value'] else 0,
-            "purchase_date": holding['purchase_date'].isoformat() if holding['purchase_date'] else None,
-            "product_name": holding['product_name'],
-            "product_type": holding['product_type']
-        })
-    
-    execution_time = time.time() - start_time
-    
-    # debug_response作成（search_customers_by_bond_maturityと同じ構造）
-    tool_debug = {
-        "executed_query": query,
-        "executed_query_results": result,  # SQL実行結果
-        "standardize_prompt": full_prompt_text,
-        "standardize_response": standardize_response,
-        "execution_time_ms": round(execution_time * 1000, 2),
-        "results_count": len(result)
-    }
-    
-    print(f"[get_customer_holdings] Returning result with {len(result)} holdings")
-    print(f"[get_customer_holdings] === FUNCTION END ===")
-    
-    return MCPResponse(result=result, debug_response=tool_debug)
+    try:
+        cursor.execute(query, query_params)
+        holdings = cursor.fetchall()
+        
+        print(f"[get_customer_holdings] Query executed, found {len(holdings)} rows")
+        
+        conn.close()
+        
+        # 配列作成
+        result_array = []
+        for holding in holdings:
+            result_array.append({
+                "id": holding['holding_id'],
+                "product_code": holding['product_code'],
+                "quantity": float(holding['quantity']) if holding['quantity'] else 0,
+                "purchase_price": float(holding['unit_price']) if holding['unit_price'] else 0,
+                "current_value": float(holding['current_value']) if holding['current_value'] else 0,
+                "purchase_date": holding['purchase_date'].isoformat() if holding['purchase_date'] else None,
+                "product_name": holding['product_name'],
+                "product_type": holding['product_type']
+            })
+        
+        # テキスト化
+        result_text = await format_holdings_to_text(result_array)
+        
+        execution_time = time.time() - start_time
+        
+        # debug_response作成
+        tool_debug = {
+            "executed_query": query,
+            "executed_query_results": result_array,  # デバッグ用は配列
+            "format_prompt": "保有商品配列をテキスト形式に変換",
+            "format_response": result_text,
+            "standardize_prompt": full_prompt_text,
+            "standardize_response": standardize_response,
+            "execution_time_ms": round(execution_time * 1000, 2),
+            "results_count": len(result_array)
+        }
+        
+        print(f"[get_customer_holdings] Returning result with {len(result_array)} holdings as text")
+        print(f"[get_customer_holdings] === FUNCTION END ===")
+        
+        return MCPResponse(result=result_text, debug_response=tool_debug)
+        
+    except Exception as sql_error:
+        conn.close()
+        error_message = f"SQLエラー: {str(sql_error)}"
+        
+        tool_debug = {
+            "executed_query": query,
+            "executed_query_results": error_message,
+            "format_prompt": "N/A (SQLエラーのため未実行)",
+            "format_response": "N/A (SQLエラーのため未実行)",
+            "standardize_prompt": full_prompt_text,
+            "standardize_response": standardize_response,
+            "execution_time_ms": round((time.time() - start_time) * 1000, 2),
+            "results_count": 0
+        }
+        
+        print(f"[get_customer_holdings] SQL Error: {sql_error}")
+        print(f"[get_customer_holdings] === FUNCTION END (ERROR) ===")
+        
+        return MCPResponse(result=error_message, debug_response=tool_debug)
 
 async def search_sales_notes(params: Dict[str, Any]):
     """営業メモ検索"""
