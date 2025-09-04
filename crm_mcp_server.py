@@ -41,32 +41,27 @@ async def call_claude(system_prompt: str, user_message: str) -> str:
         logger.error(f"Claude API error: {e}")
         return "{}"
 
-async def standardize_customer_holdings_arguments(text_input: str) -> tuple[Dict[str, Any], str, str]:
-    """顧客保有商品検索の条件を正規化"""
-    system_prompt = """顧客保有商品検索の条件を正規化してください。
+async def standardize_customer_holdings_arguments(text_input: str) -> tuple[List[str], str, str]:
+    """顧客IDのみ抽出に特化"""
+    system_prompt = """入力テキストから顧客IDを抽出してください。
 
-入力テキストから以下を抽出:
-- 顧客ID（複数可能）
-- 商品タイプフィルター
-- 複数顧客の場合はOR条件として統合
-
-JSON形式で回答:
-{"customer_ids": ["ID1", "ID2"], "product_type_filter": "タイプ", "search_logic": "OR条件の説明"}
+JSON配列形式で回答:
+["ID1", "ID2", "ID3"]
 
 例:
-- "顧客ID: C001, C002" → {"customer_ids": ["C001", "C002"], "product_type_filter": "", "search_logic": "複数顧客のOR検索"}
-- "C001の債券" → {"customer_ids": ["C001"], "product_type_filter": "債券", "search_logic": "単一顧客の債券フィルター"}"""
+- "顧客ID: 1, 7" → ["1", "7"]
+- "伊藤正雄さんの保有商品" → ["1"]
+- "全顧客" → []"""
     
     # 合成プロンプトテキスト作成
     full_prompt_text = f"{system_prompt}\n\nUser Input: {text_input}"
     
     try:
         response = await call_claude(system_prompt, text_input)
-        standardized = json.loads(response)
-        return standardized, full_prompt_text, response
+        customer_ids = json.loads(response)
+        return customer_ids, full_prompt_text, response
     except Exception as e:
-        error_response = f"解析失敗: {str(e)}"
-        return {"customer_ids": [], "product_type_filter": "", "search_logic": "解析失敗"}, full_prompt_text, error_response
+        return [], full_prompt_text, f"LLM応答のJSONパース失敗: {str(e)}"
 
 async def standardize_product_details_arguments(text_input: str) -> Dict[str, Any]:
     """商品詳細検索の条件を正規化"""
@@ -311,23 +306,19 @@ async def get_customer_holdings(params: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="text_input is required")
     
     # LLM正規化処理
-    normalized_params, full_prompt_text, standardize_response = await standardize_customer_holdings_arguments(text_input)
-    print(f"[get_customer_holdings] Normalized params: {normalized_params}")
+    customer_ids, full_prompt_text, standardize_response = await standardize_customer_holdings_arguments(text_input)
+    print(f"[get_customer_holdings] Customer IDs: {customer_ids}")
     print(f"[get_customer_holdings] Full prompt text: {full_prompt_text[:200]}...")
     print(f"[get_customer_holdings] Standardize response: {standardize_response[:200]}...")
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # 正規化されたパラメータでSQL構築
-    customer_ids = normalized_params.get("customer_ids", [])
-    product_type_filter = normalized_params.get("product_type_filter", "")
-    
     if not customer_ids:
-        # エラー時もMCPResponseでdebug_responseを返す
+        # 顧客特定不可時の処理
         tool_debug = {
-            "executed_query": "N/A (顧客ID特定失敗)",
-            "executed_query_results": [],
+            "executed_query": "顧客特定不可のためクエリ未実行",
+            "executed_query_results": "顧客特定不可のため実行できませんでした",
             "standardize_prompt": full_prompt_text,
             "standardize_response": standardize_response,
             "execution_time_ms": round((time.time() - start_time) * 1000, 2),
@@ -335,15 +326,11 @@ async def get_customer_holdings(params: Dict[str, Any]):
         }
         
         return MCPResponse(
-            result={
-                "success": False,
-                "error": "顧客IDが特定できませんでした",
-                "normalized_params": normalized_params
-            },
+            result="顧客特定不可のため実行できませんでした",
             debug_response=tool_debug
         )
     
-    # OR条件でSQL構築
+    # OR条件でSQL構築（債券のみに限定）
     placeholders = ",".join(["%s"] * len(customer_ids))
     query = f"""
     SELECT h.holding_id, h.quantity, h.unit_price, h.current_price, h.current_value,
@@ -352,16 +339,11 @@ async def get_customer_holdings(params: Dict[str, Any]):
     FROM holdings h
     JOIN products p ON h.product_code = p.product_code
     WHERE h.customer_id IN ({placeholders})
+    AND p.product_type = 'bond'
+    ORDER BY h.customer_id, h.current_value DESC
     """
     
     query_params = customer_ids
-    
-    # 商品タイプフィルター追加
-    if product_type_filter:
-        query += " AND p.product_type ILIKE %s"
-        query_params.append(f"%{product_type_filter}%")
-    
-    query += " ORDER BY h.customer_id, p.product_type, h.current_value DESC"
     
     print(f"[get_customer_holdings] Final query: {query}")
     print(f"[get_customer_holdings] Final query_params: {query_params}")
