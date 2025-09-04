@@ -561,10 +561,11 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
     print(f"[search_customers_by_bond_maturity] Params type: {type(params)}")
     
     # 引数標準化処理（不定形 → 標準形式）
-    standardized_params, full_prompt_text, standardize_response = await standardize_bond_maturity_arguments(str(params))
+    standardized_params, full_prompt_text, standardize_response, standardize_parameter = await standardize_bond_maturity_arguments(str(params))
     print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
     print(f"[search_customers_by_bond_maturity] Full prompt text: {full_prompt_text[:200]}...")
     print(f"[search_customers_by_bond_maturity] Standardize response: {standardize_response[:200]}...")
+    print(f"[search_customers_by_bond_maturity] Standardize parameter: {standardize_parameter}")
     
     days_until_maturity = standardized_params.get("days_until_maturity")
     maturity_date_from = standardized_params.get("maturity_date_from")
@@ -675,6 +676,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
             "format_response": result_text,
             "standardize_prompt": full_prompt_text,
             "standardize_response": standardize_response,
+            "standardize_parameter": standardize_parameter,
             "execution_time_ms": round(execution_time * 1000, 2),
             "results_count": len(customers)
         }
@@ -704,7 +706,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]):
         
         return MCPResponse(result=error_message, debug_response=tool_debug)
 
-async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str, str]:
+async def standardize_bond_maturity_arguments(raw_input: str) -> tuple[Dict[str, Any], str, str, str]:
     """債券満期日検索の引数を標準化（LLMベース）"""
     print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
     
@@ -734,49 +736,55 @@ JSON形式のみで回答してください。"""
     print(f"{system_prompt}")
     print(f"[standardize_bond_maturity_arguments] User Input: {raw_input}")
     
-    # LLM呼び出し（エラー時はそのまま例外を投げる）
-    import boto3
-    import json as json_lib
-    
-    bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
-    
-    body = json_lib.dumps({
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1000,
-        "system": system_prompt,
-        "messages": [{"role": "user", "content": raw_input}]
-    })
-    
-    print(f"[standardize_bond_maturity_arguments] Bedrock Request Body:")
-    print(f"{body}")
-    
-    response = bedrock.invoke_model(
-        body=body,
-        modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-        accept='application/json',
-        contentType='application/json'
-    )
-    
-    response_body = json_lib.loads(response.get('body').read())
-    standardized_text = response_body['content'][0]['text']
-    
-    print(f"[standardize_bond_maturity_arguments] LLM Raw Response:")
-    print(f"{standardized_text}")
-    print(f"[standardize_bond_maturity_arguments] === LLM CALL END ===")
-    
-    # JSON部分を抽出
-    import re
-    json_match = re.search(r'\{.*\}', standardized_text, re.DOTALL)
-    if not json_match:
-        print(f"[standardize_bond_maturity_arguments] ERROR: No JSON found in response")
-        raise ValueError(f"LLM response does not contain valid JSON: {standardized_text}")
-    
-    extracted_json = json_match.group()
-    print(f"[standardize_bond_maturity_arguments] Extracted JSON: {extracted_json}")
-    
-    standardized = json_lib.loads(extracted_json)
-    print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
-    return standardized, full_prompt_text, standardized_text
+    try:
+        # LLM呼び出し（エラー時はそのまま例外を投げる）
+        import boto3
+        import json as json_lib
+        
+        bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
+        
+        body = json_lib.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 1000,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": raw_input}]
+        })
+        
+        print(f"[standardize_bond_maturity_arguments] Bedrock Request Body:")
+        print(f"{body}")
+        
+        response = bedrock.invoke_model(
+            body=body,
+            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            accept='application/json',
+            contentType='application/json'
+        )
+        
+        response_body = json_lib.loads(response.get('body').read())
+        raw_response = response_body['content'][0]['text']
+        
+        print(f"[standardize_bond_maturity_arguments] LLM Raw Response:")
+        print(f"{raw_response}")
+        print(f"[standardize_bond_maturity_arguments] === LLM CALL END ===")
+        
+        # JSON部分を抽出
+        import re
+        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+        if not json_match:
+            print(f"[standardize_bond_maturity_arguments] ERROR: No JSON found in response")
+            error_message = f"LLM応答のJSONパース失敗: No JSON found in response"
+            return {}, full_prompt_text, raw_response, error_message
+        
+        extracted_json = json_match.group()
+        print(f"[standardize_bond_maturity_arguments] Extracted JSON: {extracted_json}")
+        
+        standardized = json_lib.loads(extracted_json)
+        print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized}")
+        return standardized, full_prompt_text, raw_response, standardized
+        
+    except Exception as e:
+        error_message = f"LLM応答のJSONパース失敗: {str(e)}"
+        return {}, full_prompt_text, raw_response if 'raw_response' in locals() else "LLM呼び出し失敗", error_message
 
 if __name__ == "__main__":
     import uvicorn
