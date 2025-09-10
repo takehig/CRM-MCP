@@ -1,12 +1,34 @@
 # Bond maturity search tool
 
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 from utils.database import get_db_connection
 from utils.standardizers import standardize_bond_maturity_arguments
-from utils.formatters import format_customers_to_text
+from utils.llm_client import bedrock_client
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
+
+async def _format_bond_maturity_results(customers_array: List[Dict]) -> str:
+    """債券満期検索結果の専用フォーマット処理"""
+    if not customers_array:
+        return "債券満期検索結果: 該当する顧客はいませんでした。"
+    
+    system_prompt = """債券満期検索の結果配列を、後続のツールが使いやすいシンプルなテキスト形式に変換してください。
+
+要求:
+1. 顧客IDを明確に記載
+2. 満期日情報を含める
+3. 後続ツールが顧客IDを抽出しやすい形式
+
+例:
+顧客ID: 1, 2, 3
+満期債券保有者: 伊藤正雄(ID:1, 満期:2025-12-31), 田中花子(ID:2, 満期:2026-06-30)"""
+
+    customers_json = str(customers_array)
+    result_text = await bedrock_client.call_claude(system_prompt, customers_json)
+    
+    print(f"[_format_bond_maturity_results] Formatted result: {result_text[:200]}...")
+    return result_text
 
 async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPResponse:
     """債券満期日条件での顧客検索"""
@@ -85,7 +107,7 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPRespon
             })
         
         # テキスト化
-        result_text = await format_customers_to_text(customers)
+        result_text = await _format_bond_maturity_results(customers)
         
         execution_time = time.time() - start_time
         

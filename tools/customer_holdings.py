@@ -1,12 +1,36 @@
 # Customer holdings tool
 
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 from utils.database import get_db_connection
 from utils.standardizers import standardize_customer_arguments
-from utils.formatters import format_holdings_to_text
+from utils.llm_client import bedrock_client
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
+
+async def _format_holdings_results(holdings_array: List[Dict]) -> str:
+    """顧客保有商品結果の専用フォーマット処理"""
+    if not holdings_array:
+        return "保有商品検索結果: 該当する保有商品はありませんでした。"
+    
+    system_prompt = """保有商品の結果配列を、読みやすいテキスト形式に変換してください。
+
+要求:
+1. 顧客別にグループ化
+2. 商品名、数量、現在価値を含める
+3. 合計金額を計算
+
+例:
+顧客ID: 1 (伊藤正雄)
+- 商品A: 100株, 現在価値: 1,000,000円
+- 商品B: 50口, 現在価値: 500,000円
+小計: 1,500,000円"""
+
+    holdings_json = str(holdings_array)
+    result_text = await bedrock_client.call_claude(system_prompt, holdings_json)
+    
+    print(f"[_format_holdings_results] Formatted result: {result_text[:200]}...")
+    return result_text
 
 async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
     """顧客の保有商品情報を取得"""
@@ -80,7 +104,7 @@ async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
             })
         
         # テキスト化
-        result_text = await format_holdings_to_text(holdings)
+        result_text = await _format_holdings_results(holdings)
         
         execution_time = time.time() - start_time
         
