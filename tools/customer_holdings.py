@@ -3,7 +3,7 @@
 import time
 import json
 from typing import Dict, Any, Tuple, List
-from utils.database import get_db_connection
+from utils.database import get_db_connection, get_system_prompt
 from utils.llm_client import bedrock_client
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
@@ -12,15 +12,9 @@ async def standardize_customer_arguments(raw_input: str) -> Tuple[list, str, str
     """顧客検索の引数を標準化（LLMベース）"""
     print(f"[standardize_customer_arguments] Raw input: {raw_input}")
     
-    system_prompt = """入力テキストから顧客IDを抽出してください。
-JSON配列形式で回答:
-["ID1", "ID2", "ID3"]
-
-例:
-- "顧客ID: 1, 7" → ["1", "7"]
-- "伊藤正雄さんの保有商品" → ["1"]
-- "全顧客" → []"""
-
+    # データベースからシステムプロンプト取得
+    system_prompt = await get_system_prompt("get_customer_holdings_pre")
+    
     full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
     
     response = await bedrock_client.call_claude(system_prompt, raw_input)

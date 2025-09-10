@@ -3,7 +3,7 @@
 import time
 import json
 from typing import Dict, Any, Tuple
-from utils.database import get_db_connection
+from utils.database import get_db_connection, get_system_prompt
 from utils.llm_client import bedrock_client
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
@@ -12,24 +12,9 @@ async def standardize_bond_maturity_arguments(raw_input: str) -> Tuple[Dict[str,
     """債券満期日検索の引数を標準化（LLMベース）"""
     print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
     
-    system_prompt = """あなたは債券満期日検索の引数標準化エージェントです。
-
-不定形の入力を以下の標準形式に変換してください：
-
-標準形式（いずれか1つ以上を出力）:
-- days_until_maturity: 満期までの日数（整数）
-- maturity_date_from: 開始日（YYYY-MM-DD形式）
-- maturity_date_to: 終了日（YYYY-MM-DD形式）
-
-変換例:
-入力: "{'maturity_range': '2 years'}" → 出力: {"days_until_maturity": 730}
-入力: "{'period': '18ヶ月'}" → 出力: {"days_until_maturity": 540}
-入力: "{'within': '6 months'}" → 出力: {"days_until_maturity": 180}
-入力: "{'from': '2025-01-01', 'to': '2026-12-31'}" → 出力: {"maturity_date_from": "2025-01-01", "maturity_date_to": "2026-12-31"}
-
-どんな形式の入力でも強引に標準形式に変換してください。
-JSON形式のみで回答してください。"""
-
+    # データベースからシステムプロンプト取得
+    system_prompt = await get_system_prompt("search_customers_by_bond_maturity_pre")
+    
     full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
     
     print(f"[standardize_bond_maturity_arguments] === LLM CALL START ===")
