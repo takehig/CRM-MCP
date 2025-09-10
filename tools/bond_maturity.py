@@ -106,21 +106,13 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPRespon
                 "product_type": row['product_type']
             })
         
-        # テキスト化（直接処理）
+        # テキスト化（データベースプロンプト使用）
         if not customers:
             result_text = "債券満期検索結果: 該当する顧客はいませんでした。"
         else:
-            system_prompt = """債券満期検索の結果配列を、後続のツールが使いやすいシンプルなテキスト形式に変換してください。
-
-要求:
-1. 顧客IDを明確に記載
-2. 満期日情報を含める
-3. 後続ツールが顧客IDを抽出しやすい形式
-
-例:
-顧客ID: 1, 2, 3
-満期債券保有者: 伊藤正雄(ID:1, 満期:2025-12-31), 田中花子(ID:2, 満期:2026-06-30)"""
-
+            # データベースからシステムプロンプト取得
+            system_prompt = await get_system_prompt("search_customers_by_bond_maturity_post")
+            
             customers_json = str(customers)
             result_text = await bedrock_client.call_claude(system_prompt, customers_json)
             print(f"[search_customers_by_bond_maturity] Formatted result: {result_text[:200]}...")
