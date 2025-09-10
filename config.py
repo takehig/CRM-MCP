@@ -1,14 +1,18 @@
 # CRM-MCP Configuration
 
 import os
+from dotenv import load_dotenv
 
-# データベース設定
+# .env ファイル読み込み
+load_dotenv()
+
+# データベース設定（.env ファイルから取得）
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "wealthai",
-    "user": "wealthai_user",
-    "password": "wealthai123"  # CRM/.env から取得した正しいパスワード
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "database": os.getenv("DB_NAME", "wealthai"),
+    "user": os.getenv("DB_USER", "wealthai_user"),
+    "password": os.getenv("DB_PASSWORD", "wealthai123")
 }
 
 # Bedrock設定
