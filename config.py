@@ -8,7 +8,7 @@ DB_CONFIG = {
     "port": 5432,
     "database": "wealthai",
     "user": "wealthai_user",
-    "password": "wealthai_password"  # TODO: 正しいパスワードに修正
+    "password": "wealthai123"  # CRM/.env から取得した正しいパスワード
 }
 
 # Bedrock設定
