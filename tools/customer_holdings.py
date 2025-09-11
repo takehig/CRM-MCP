@@ -4,7 +4,7 @@ import time
 import json
 from typing import Dict, Any, Tuple, List
 from utils.database import get_db_connection, get_system_prompt
-from utils.llm_client import bedrock_client
+from utils.llm_util import llm_util
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
 
@@ -15,10 +15,10 @@ async def standardize_customer_arguments(raw_input: str) -> Tuple[list, str, str
     # データベースからシステムプロンプト取得
     system_prompt = await get_system_prompt("get_customer_holdings_pre")
     
-    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
-    
-    response = await bedrock_client.call_claude(system_prompt, raw_input)
+    response = await llm_util.call_claude(system_prompt, raw_input)
     print(f"[standardize_customer_arguments] LLM Raw Response: {response}")
+    
+    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
     
     try:
         customer_ids = json.loads(response)
@@ -101,10 +101,11 @@ async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
                 "purchase_date": row['purchase_date'].isoformat() if row['purchase_date'] else None
             })
         
-        # テキスト化（直接処理）
+        # テキスト化（責任分離・データベースプロンプト使用）
         if not holdings:
             result_text = "保有商品検索結果: 該当する保有商品はありませんでした。"
         else:
+            # データベースからシステムプロンプト取得（将来実装）
             system_prompt = """保有商品の結果配列を、読みやすいテキスト形式に変換してください。
 
 要求:
@@ -118,8 +119,10 @@ async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
 - 商品B: 50口, 現在価値: 500,000円
 小計: 1,500,000円"""
 
-            holdings_json = str(holdings)
-            result_text = await bedrock_client.call_claude(system_prompt, holdings_json)
+            # プロンプトとデータを分離して結合
+            from utils.llm_util import format_prompt_with_data
+            formatted_prompt = format_prompt_with_data(system_prompt, holdings)
+            result_text = await llm_util.call_claude(formatted_prompt, "")
             print(f"[get_customer_holdings] Formatted result: {result_text[:200]}...")
         
         execution_time = time.time() - start_time

@@ -4,7 +4,7 @@ import time
 import json
 from typing import Dict, Any, Tuple
 from utils.database import get_db_connection, get_system_prompt
-from utils.llm_client import bedrock_client
+from utils.llm_util import llm_util, format_prompt_with_data
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
 
@@ -15,12 +15,12 @@ async def standardize_bond_maturity_arguments(raw_input: str) -> Tuple[Dict[str,
     # データベースからシステムプロンプト取得
     system_prompt = await get_system_prompt("search_customers_by_bond_maturity_pre")
     
-    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
-    
     print(f"[standardize_bond_maturity_arguments] === LLM CALL START ===")
-    response = await bedrock_client.call_claude(system_prompt, raw_input)
+    response = await llm_util.call_claude(system_prompt, raw_input)
     print(f"[standardize_bond_maturity_arguments] LLM Raw Response: {response}")
     print(f"[standardize_bond_maturity_arguments] === LLM CALL END ===")
+    
+    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
     
     try:
         standardized_params = json.loads(response)
@@ -106,15 +106,16 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPRespon
                 "product_type": row['product_type']
             })
         
-        # テキスト化（データベースプロンプト使用）
+        # テキスト化（責任分離・データベースプロンプト使用）
         if not customers:
             result_text = "債券満期検索結果: 該当する顧客はいませんでした。"
         else:
             # データベースからシステムプロンプト取得
             system_prompt = await get_system_prompt("search_customers_by_bond_maturity_post")
             
-            customers_json = str(customers)
-            result_text = await bedrock_client.call_claude(system_prompt, customers_json)
+            # プロンプトとデータを分離して結合
+            formatted_prompt = format_prompt_with_data(system_prompt, customers)
+            result_text = await llm_util.call_claude(formatted_prompt, "")
             print(f"[search_customers_by_bond_maturity] Formatted result: {result_text[:200]}...")
         
         execution_time = time.time() - start_time
