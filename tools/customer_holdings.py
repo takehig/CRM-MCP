@@ -35,20 +35,9 @@ async def format_customer_holdings_results(holdings: list) -> str:
     if not holdings:
         return "保有商品検索結果: 該当する保有商品はありませんでした。"
     
-    # システムプロンプト（将来的にはデータベース化）
-    system_prompt = """保有商品の結果配列を、読みやすいテキスト形式に変換してください。
-
-要求:
-1. 顧客別にグループ化
-2. 商品名、数量、現在価値を含める
-3. 合計金額を計算
-
-例:
-顧客ID: 1 (伊藤正雄)
-- 商品A: 100株, 現在価値: 1,000,000円
-- 商品B: 50口, 現在価値: 500,000円
-小計: 1,500,000円"""
-
+    # システムプロンプト取得
+    system_prompt = await llm_util.get_system_prompt('get_customer_holdings_post')
+    
     # 呼び出し元でデータ結合（責任明確化）
     data_json = json.dumps(holdings, ensure_ascii=False, default=str, indent=2)
     full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
