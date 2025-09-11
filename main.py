@@ -89,15 +89,19 @@ async def mcp_endpoint(request: MCPRequest):
                 return tool_response
                 
             else:
+                error_msg = f"Unknown tool: {tool_name}"
                 return MCPResponse(
                     id=request.id,
-                    error=f"Unknown tool: {tool_name}"
+                    result=error_msg,
+                    error=error_msg
                 )
         
         else:
+            error_msg = f"Unknown method: {method}"
             return MCPResponse(
                 id=request.id,
-                error=f"Unknown method: {method}"
+                result=error_msg,
+                error=error_msg
             )
     
     except Exception as e:
