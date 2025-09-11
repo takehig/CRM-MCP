@@ -15,10 +15,15 @@ async def standardize_customer_arguments(raw_input: str) -> Tuple[list, str, str
     # データベースからシステムプロンプト取得
     system_prompt = await get_system_prompt("get_customer_holdings_pre")
     
-    response = await llm_util.call_claude(system_prompt, raw_input)
-    print(f"[standardize_customer_arguments] LLM Raw Response: {response}")
+    # 完全プロンプト作成
+    full_prompt = f"{system_prompt}\n\nUser Input: {raw_input}"
     
-    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
+    # call_llm_simple使用（統一）
+    response, execution_time = await llm_util.call_llm_simple(full_prompt)
+    print(f"[standardize_customer_arguments] LLM Raw Response: {response}")
+    print(f"[standardize_customer_arguments] Execution time: {execution_time}ms")
+    
+    full_prompt_text = full_prompt
     
     try:
         customer_ids = json.loads(response)
