@@ -41,7 +41,7 @@ async def format_customer_holdings_results(holdings: list) -> str:
         return "保有商品検索結果: 該当する保有商品はありませんでした。"
     
     # システムプロンプト取得
-    system_prompt = await llm_util.get_system_prompt('get_customer_holdings_post')
+    system_prompt = await get_system_prompt('get_customer_holdings_post')
     
     # 呼び出し元でデータ結合（責任明確化）
     data_json = json.dumps(holdings, ensure_ascii=False, default=str, indent=2)
