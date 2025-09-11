@@ -4,7 +4,7 @@ import time
 import json
 from typing import Dict, Any, Tuple
 from utils.database import get_db_connection, get_system_prompt
-from utils.llm_util import llm_util, format_prompt_with_data
+from utils.llm_util import llm_util
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
 
@@ -106,16 +106,19 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPRespon
                 "product_type": row['product_type']
             })
         
-        # テキスト化（責任分離・データベースプロンプト使用）
+        # テキスト化（呼び出し元責任・call_llm_simple使用）
         if not customers:
             result_text = "債券満期検索結果: 該当する顧客はいませんでした。"
         else:
             # データベースからシステムプロンプト取得
             system_prompt = await get_system_prompt("search_customers_by_bond_maturity_post")
             
-            # プロンプトとデータを分離して結合
-            formatted_prompt = format_prompt_with_data(system_prompt, customers)
-            result_text = await llm_util.call_claude(formatted_prompt, "")
+            # 呼び出し元でデータ結合（責任明確化）
+            data_json = json.dumps(customers, ensure_ascii=False, default=str, indent=2)
+            full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
+            
+            # 完全プロンプトでLLM呼び出し
+            result_text, execution_time = await llm_util.call_llm_simple(full_prompt)
             print(f"[search_customers_by_bond_maturity] Formatted result: {result_text[:200]}...")
         
         execution_time = time.time() - start_time

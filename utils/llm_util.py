@@ -90,11 +90,35 @@ class LLMUtil:
             logger.error(f"Claude API call failed: {e}")
             print(f"[ERROR] Bedrock call failed: {e}")
             return f"LLMエラー: {str(e)}"
-
-def format_prompt_with_data(system_prompt: str, data_results) -> str:
-    """システムプロンプトとデータを結合"""
-    data_json = json.dumps(data_results, ensure_ascii=False, default=str, indent=2)
-    return f"{system_prompt}\n\nData:\n{data_json}"
+    
+    async def call_llm_simple(self, full_prompt: str, max_tokens: int = 1000, temperature: float = 0.1) -> Tuple[str, float]:
+        """純粋なLLM呼び出し - 完全なプロンプトを受け取りレスポンスを返す"""
+        start_time = time.time()
+        
+        try:
+            body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "system": full_prompt,
+                "messages": [{"role": "user", "content": "Please respond."}],
+                "temperature": temperature
+            }
+            
+            response = self.bedrock_client.invoke_model(
+                modelId=self.model_id,
+                body=json.dumps(body)
+            )
+            
+            response_body = json.loads(response['body'].read())
+            execution_time = (time.time() - start_time) * 1000
+            
+            return response_body['content'][0]['text'], execution_time
+            
+        except Exception as e:
+            execution_time = (time.time() - start_time) * 1000
+            logger.error(f"LLM call error: {e}")
+            print(f"[ERROR] LLM call failed: {e}")
+            return f"LLMエラー: {str(e)}", execution_time
 
 # グローバルインスタンス（後方互換性）
 llm_util = LLMUtil()

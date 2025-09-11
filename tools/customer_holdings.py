@@ -101,11 +101,11 @@ async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
                 "purchase_date": row['purchase_date'].isoformat() if row['purchase_date'] else None
             })
         
-        # テキスト化（責任分離・データベースプロンプト使用）
+        # テキスト化（呼び出し元責任・call_llm_simple使用）
         if not holdings:
             result_text = "保有商品検索結果: 該当する保有商品はありませんでした。"
         else:
-            # データベースからシステムプロンプト取得（将来実装）
+            # システムプロンプト（将来的にはデータベース化）
             system_prompt = """保有商品の結果配列を、読みやすいテキスト形式に変換してください。
 
 要求:
@@ -119,10 +119,12 @@ async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
 - 商品B: 50口, 現在価値: 500,000円
 小計: 1,500,000円"""
 
-            # プロンプトとデータを分離して結合
-            from utils.llm_util import format_prompt_with_data
-            formatted_prompt = format_prompt_with_data(system_prompt, holdings)
-            result_text = await llm_util.call_claude(formatted_prompt, "")
+            # 呼び出し元でデータ結合（責任明確化）
+            data_json = json.dumps(holdings, ensure_ascii=False, default=str, indent=2)
+            full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
+            
+            # 完全プロンプトでLLM呼び出し
+            result_text, execution_time = await llm_util.call_llm_simple(full_prompt)
             print(f"[get_customer_holdings] Formatted result: {result_text[:200]}...")
         
         execution_time = time.time() - start_time
