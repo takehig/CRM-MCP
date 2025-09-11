@@ -78,15 +78,15 @@ async def mcp_endpoint(request: MCPRequest):
             
             if tool_name == "search_customers_by_bond_maturity":
                 print(f"[MCP_ENDPOINT] Calling search_customers_by_bond_maturity")
-                result = await search_customers_by_bond_maturity(arguments)
-                result.id = request.id
-                return result
+                tool_response = await search_customers_by_bond_maturity(arguments)
+                tool_response.id = request.id
+                return tool_response
                 
             elif tool_name == "get_customer_holdings":
                 print(f"[MCP_ENDPOINT] Calling get_customer_holdings")
-                result = await get_customer_holdings(arguments)
-                result.id = request.id
-                return result
+                tool_response = await get_customer_holdings(arguments)
+                tool_response.id = request.id
+                return tool_response
                 
             else:
                 return MCPResponse(
