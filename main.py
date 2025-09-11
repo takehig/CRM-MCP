@@ -3,11 +3,13 @@
 from fastapi import FastAPI, HTTPException
 from datetime import datetime
 from models import MCPRequest, MCPResponse
-from tools.bond_maturity import search_customers_by_bond_maturity
-from tools.customer_holdings import get_customer_holdings
+from tools_manager import ToolsManager
 from config import MCP_CONFIG
 
 app = FastAPI(title="CRM-MCP Server", version=MCP_CONFIG["version"])
+
+# ツール管理インスタンス
+tools_manager = ToolsManager()
 
 @app.get("/health")
 async def health_check():
@@ -43,28 +45,11 @@ async def mcp_endpoint(request: MCPRequest):
             )
         
         elif method == "tools/list":
-            # ツール一覧
+            # ツール一覧（一元管理から取得）
             return MCPResponse(
                 id=request.id,
                 result={
-                    "tools": [
-                        {
-                            "name": "search_customers_by_bond_maturity",
-                            "description": "債券の満期日条件で顧客を検索",
-                            "usage_context": "満期が近い債券保有顧客を調べたい、特定期間内に満期を迎える債券の顧客を探したい時に使用",
-                            "parameters": {
-                                "text_input": {"type": "string", "description": "満期条件のテキスト（例：2年以内、6ヶ月以内）"}
-                            }
-                        },
-                        {
-                            "name": "get_customer_holdings",
-                            "description": "顧客の保有商品情報を取得",
-                            "usage_context": "特定の顧客が何を保有しているか知りたい、顧客のポートフォリオを確認したい時に使用",
-                            "parameters": {
-                                "text_input": {"type": "string", "description": "顧客指定のテキスト（顧客ID、顧客名など）"}
-                            }
-                        }
-                    ]
+                    "tools": tools_manager.get_mcp_tools_format()
                 }
             )
         
@@ -76,18 +61,22 @@ async def mcp_endpoint(request: MCPRequest):
             print(f"[MCP_ENDPOINT] Tool name: {tool_name}")
             print(f"[MCP_ENDPOINT] Arguments: {arguments}")
             
-            if tool_name == "search_customers_by_bond_maturity":
-                print(f"[MCP_ENDPOINT] Calling search_customers_by_bond_maturity")
-                tool_response = await search_customers_by_bond_maturity(arguments)
-                tool_response.id = request.id
-                return tool_response
+            # 動的ツール実行
+            if tools_manager.is_valid_tool(tool_name):
+                print(f"[MCP_ENDPOINT] Calling {tool_name}")
+                tool_function = tools_manager.get_tool_function(tool_name)
                 
-            elif tool_name == "get_customer_holdings":
-                print(f"[MCP_ENDPOINT] Calling get_customer_holdings")
-                tool_response = await get_customer_holdings(arguments)
-                tool_response.id = request.id
-                return tool_response
-                
+                if tool_function:
+                    tool_response = await tool_function(arguments)
+                    tool_response.id = request.id
+                    return tool_response
+                else:
+                    error_msg = f"Tool function not found: {tool_name}"
+                    return MCPResponse(
+                        id=request.id,
+                        result=error_msg,
+                        error=error_msg
+                    )
             else:
                 error_msg = f"Unknown tool: {tool_name}"
                 return MCPResponse(
@@ -121,58 +110,14 @@ async def mcp_endpoint(request: MCPRequest):
 
 @app.get("/tools")
 async def list_available_tools():
-    """MCPプロトコル準拠のツール一覧（2ツール）"""
+    """MCPプロトコル準拠のツール一覧"""
     return {
-        "tools": [
-            {
-                "name": "search_customers_by_bond_maturity",
-                "description": "債券の満期日条件で顧客を検索します（満期の近い債券保有者など）",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "text_input": {"type": "string", "description": "満期条件のテキスト（例：2年以内、6ヶ月以内）"}
-                    },
-                    "required": ["text_input"]
-                }
-            },
-            {
-                "name": "get_customer_holdings",
-                "description": "顧客の保有商品情報を取得します",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "text_input": {"type": "string", "description": "顧客指定のテキスト（顧客ID、顧客名など）"}
-                    },
-                    "required": ["text_input"]
-                }
-            }
-        ]
+        "tools": tools_manager.get_tools_list()
     }
 
 @app.get("/tools/descriptions")
 async def get_tool_descriptions():
     """ツール詳細情報（AIChat用）"""
     return {
-        "tools": [
-            {
-                "name": "search_customers_by_bond_maturity",
-                "description": "債券の満期日条件で顧客を検索",
-                "usage_context": "満期が近い債券保有顧客を調べたい、特定期間内に満期を迎える債券の顧客を探したい時に使用",
-                "parameters": {
-                    "text_input": {"type": "string", "description": "満期条件のテキスト（例：2年以内、6ヶ月以内）"}
-                }
-            },
-            {
-                "name": "get_customer_holdings", 
-                "description": "顧客の保有商品情報を取得",
-                "usage_context": "特定の顧客が何を保有しているか知りたい、顧客のポートフォリオを確認したい時に使用",
-                "parameters": {
-                    "text_input": {"type": "string", "description": "顧客指定のテキスト（顧客ID、顧客名など）"}
-                }
-            }
-        ]
+        "tools": tools_manager.get_tools_descriptions()
     }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8004)

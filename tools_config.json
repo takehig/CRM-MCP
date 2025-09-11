@@ -1,0 +1,30 @@
+{
+    "tools": [
+        {
+            "name": "search_customers_by_bond_maturity",
+            "description": "債券の満期日条件で顧客を検索",
+            "usage_context": "満期が近い債券保有顧客を調べたい、特定期間内に満期を迎える債券の顧客を探したい時に使用",
+            "parameters": {
+                "text_input": {
+                    "type": "string", 
+                    "description": "満期条件のテキスト（例：2年以内、6ヶ月以内）"
+                }
+            },
+            "function_name": "search_customers_by_bond_maturity",
+            "module_path": "tools.bond_maturity"
+        },
+        {
+            "name": "get_customer_holdings",
+            "description": "顧客の保有商品情報を取得",
+            "usage_context": "特定の顧客が何を保有しているか知りたい、顧客のポートフォリオを確認したい時に使用",
+            "parameters": {
+                "text_input": {
+                    "type": "string",
+                    "description": "顧客指定のテキスト（顧客ID、顧客名など）"
+                }
+            },
+            "function_name": "get_customer_holdings",
+            "module_path": "tools.customer_holdings"
+        }
+    ]
+}
