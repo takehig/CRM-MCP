@@ -30,6 +30,25 @@ async def standardize_bond_maturity_arguments(raw_input: str) -> Tuple[Dict[str,
         print(f"[standardize_bond_maturity_arguments] JSON parse error: {e}")
         return {}, full_prompt_text, response, f"JSONパースエラー: {str(e)}"
 
+async def format_bond_maturity_results(customers: list) -> str:
+    """債券満期検索結果をテキスト化"""
+    if not customers:
+        return "債券満期検索結果: 該当する顧客はいませんでした。"
+    
+    # データベースからシステムプロンプト取得
+    system_prompt = await get_system_prompt("search_customers_by_bond_maturity_post")
+    
+    # 呼び出し元でデータ結合（責任明確化）
+    data_json = json.dumps(customers, ensure_ascii=False, default=str, indent=2)
+    full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
+    
+    # 完全プロンプトでLLM呼び出し
+    result_text, execution_time = await llm_util.call_llm_simple(full_prompt)
+    print(f"[format_bond_maturity_results] Execution time: {execution_time}ms")
+    print(f"[format_bond_maturity_results] Formatted result: {result_text[:200]}...")
+    
+    return result_text
+
 async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPResponse:
     """債券満期日条件での顧客検索"""
     start_time = time.time()
@@ -106,20 +125,8 @@ async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPRespon
                 "product_type": row['product_type']
             })
         
-        # テキスト化（呼び出し元責任・call_llm_simple使用）
-        if not customers:
-            result_text = "債券満期検索結果: 該当する顧客はいませんでした。"
-        else:
-            # データベースからシステムプロンプト取得
-            system_prompt = await get_system_prompt("search_customers_by_bond_maturity_post")
-            
-            # 呼び出し元でデータ結合（責任明確化）
-            data_json = json.dumps(customers, ensure_ascii=False, default=str, indent=2)
-            full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
-            
-            # 完全プロンプトでLLM呼び出し
-            result_text, execution_time = await llm_util.call_llm_simple(full_prompt)
-            print(f"[search_customers_by_bond_maturity] Formatted result: {result_text[:200]}...")
+        # 結果テキスト化（関数化）
+        result_text = await format_bond_maturity_results(customers)
         
         execution_time = time.time() - start_time
         

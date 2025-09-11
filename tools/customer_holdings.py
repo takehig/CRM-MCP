@@ -30,6 +30,36 @@ async def standardize_customer_arguments(raw_input: str) -> Tuple[list, str, str
         print(f"[standardize_customer_arguments] JSON parse error: {e}")
         return [], full_prompt_text, response, f"LLM応答のJSONパース失敗: {str(e)}"
 
+async def format_customer_holdings_results(holdings: list) -> str:
+    """顧客保有商品結果をテキスト化"""
+    if not holdings:
+        return "保有商品検索結果: 該当する保有商品はありませんでした。"
+    
+    # システムプロンプト（将来的にはデータベース化）
+    system_prompt = """保有商品の結果配列を、読みやすいテキスト形式に変換してください。
+
+要求:
+1. 顧客別にグループ化
+2. 商品名、数量、現在価値を含める
+3. 合計金額を計算
+
+例:
+顧客ID: 1 (伊藤正雄)
+- 商品A: 100株, 現在価値: 1,000,000円
+- 商品B: 50口, 現在価値: 500,000円
+小計: 1,500,000円"""
+
+    # 呼び出し元でデータ結合（責任明確化）
+    data_json = json.dumps(holdings, ensure_ascii=False, default=str, indent=2)
+    full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
+    
+    # 完全プロンプトでLLM呼び出し
+    result_text, execution_time = await llm_util.call_llm_simple(full_prompt)
+    print(f"[format_customer_holdings_results] Execution time: {execution_time}ms")
+    print(f"[format_customer_holdings_results] Formatted result: {result_text[:200]}...")
+    
+    return result_text
+
 async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
     """顧客の保有商品情報を取得"""
     start_time = time.time()
@@ -101,31 +131,8 @@ async def get_customer_holdings(params: Dict[str, Any]) -> MCPResponse:
                 "purchase_date": row['purchase_date'].isoformat() if row['purchase_date'] else None
             })
         
-        # テキスト化（呼び出し元責任・call_llm_simple使用）
-        if not holdings:
-            result_text = "保有商品検索結果: 該当する保有商品はありませんでした。"
-        else:
-            # システムプロンプト（将来的にはデータベース化）
-            system_prompt = """保有商品の結果配列を、読みやすいテキスト形式に変換してください。
-
-要求:
-1. 顧客別にグループ化
-2. 商品名、数量、現在価値を含める
-3. 合計金額を計算
-
-例:
-顧客ID: 1 (伊藤正雄)
-- 商品A: 100株, 現在価値: 1,000,000円
-- 商品B: 50口, 現在価値: 500,000円
-小計: 1,500,000円"""
-
-            # 呼び出し元でデータ結合（責任明確化）
-            data_json = json.dumps(holdings, ensure_ascii=False, default=str, indent=2)
-            full_prompt = f"{system_prompt}\n\nData:\n{data_json}"
-            
-            # 完全プロンプトでLLM呼び出し
-            result_text, execution_time = await llm_util.call_llm_simple(full_prompt)
-            print(f"[get_customer_holdings] Formatted result: {result_text[:200]}...")
+        # 結果テキスト化（関数化）
+        result_text = await format_customer_holdings_results(holdings)
         
         execution_time = time.time() - start_time
         
