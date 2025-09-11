@@ -121,3 +121,7 @@ async def get_tool_descriptions():
     return {
         "tools": tools_manager.get_tools_descriptions()
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8004)
