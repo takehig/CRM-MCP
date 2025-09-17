@@ -69,21 +69,26 @@ async def mcp_endpoint(request: MCPRequest):
                 if tool_function:
                     tool_response = await tool_function(arguments)
                     tool_response.id = request.id
+                    print(f"[MCP_ENDPOINT] About to return response: {tool_response}")
                     return tool_response
                 else:
                     error_msg = f"Tool function not found: {tool_name}"
-                    return MCPResponse(
+                    response = MCPResponse(
                         id=request.id,
                         result=error_msg,
                         error=error_msg
                     )
+                    print(f"[MCP_ENDPOINT] About to return error response: {response}")
+                    return response
             else:
                 error_msg = f"Unknown tool: {tool_name}"
-                return MCPResponse(
+                response = MCPResponse(
                     id=request.id,
                     result=error_msg,
                     error=error_msg
                 )
+                print(f"[MCP_ENDPOINT] About to return unknown tool response: {response}")
+                return response
         
         else:
             error_msg = f"Unknown method: {method}"
