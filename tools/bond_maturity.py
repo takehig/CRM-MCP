@@ -9,6 +9,95 @@ from utils.llm_util import llm_util
 from models import MCPResponse
 from psycopg2.extras import RealDictCursor
 
+async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPResponse:
+    """債券満期日条件での顧客検索"""
+    start_time = time.time()
+    
+    print(f"[search_customers_by_bond_maturity] === FUNCTION START ===")
+    print(f"[search_customers_by_bond_maturity] Received raw params: {params}")
+    
+    # Try外で初期化（エラー時情報保持）
+    tool_debug = {
+        "format_request": None,
+        "standardize_prompt": None,
+        "standardize_response": None,
+        "standardize_parameter": None,
+        "executed_query": None,
+        "executed_query_results": None,
+        "format_response": None,
+        "execution_time_ms": None,
+        "results_count": None
+    }
+    
+    try:
+        # 引数標準化処理（参照渡し）
+        standardized_params = await standardize_bond_maturity_arguments(str(params), tool_debug)
+        print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
+        
+        days_until_maturity = standardized_params.get("days_until_maturity")
+        maturity_date_from = standardized_params.get("maturity_date_from")
+        maturity_date_to = standardized_params.get("maturity_date_to")
+        
+        print(f"[search_customers_by_bond_maturity] Extracted values:")
+        print(f"  - days_until_maturity: {days_until_maturity}")
+        print(f"  - maturity_date_from: {maturity_date_from}")
+        print(f"  - maturity_date_to: {maturity_date_to}")
+        
+        # データベース接続・クエリ実行（参照渡し）
+        customers = await execute_bond_maturity_query(days_until_maturity, maturity_date_from, maturity_date_to, tool_debug)
+        
+        # 結果テキスト化（参照渡し）
+        result_text = await format_bond_maturity_results(customers, str(params), tool_debug)
+        
+        execution_time = time.time() - start_time
+        tool_debug["execution_time_ms"] = round(execution_time * 1000, 2)
+        tool_debug["results_count"] = len(customers)
+        
+        print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers")
+        print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
+        
+        return MCPResponse(result=result_text, debug_response=tool_debug)
+        
+    except Exception as e:
+        execution_time = time.time() - start_time
+        error_message = f"債券満期検索エラー: {str(e)}"
+        
+        tool_debug["execution_time_ms"] = round(execution_time * 1000, 2)
+        tool_debug["results_count"] = 0
+        
+        print(f"[search_customers_by_bond_maturity] ERROR: {error_message}")
+        print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
+        
+        return MCPResponse(result=error_message, debug_response=tool_debug, error=str(e))
+
+async def standardize_bond_maturity_arguments(raw_input: str, tool_debug: Dict) -> Dict[str, Any]:
+    """債券満期日検索の引数を標準化（LLMベース）"""
+    print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
+    
+    # データベースからシステムプロンプト取得
+    system_prompt = await get_system_prompt("search_customers_by_bond_maturity_pre")
+    
+    print(f"[standardize_bond_maturity_arguments] === LLM CALL START ===")
+    response = await llm_util.call_claude(system_prompt, raw_input)
+    print(f"[standardize_bond_maturity_arguments] LLM Raw Response: {response}")
+    print(f"[standardize_bond_maturity_arguments] === LLM CALL END ===")
+    
+    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
+    
+    # tool_debugに情報設定
+    tool_debug["standardize_prompt"] = full_prompt_text
+    tool_debug["standardize_response"] = response
+    
+    try:
+        standardized_params = json.loads(response)
+        print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized_params}")
+        tool_debug["standardize_parameter"] = str(standardized_params)
+        return standardized_params
+    except json.JSONDecodeError as e:
+        print(f"[standardize_bond_maturity_arguments] JSON parse error: {e}")
+        tool_debug["standardize_parameter"] = f"JSONパースエラー: {str(e)}"
+        return {}
+
 async def execute_bond_maturity_query(days_until_maturity, maturity_date_from, maturity_date_to, tool_debug: Dict) -> List[Dict]:
     """債券満期クエリ実行"""
     # データベース接続・クエリ実行
@@ -74,34 +163,6 @@ async def execute_bond_maturity_query(days_until_maturity, maturity_date_from, m
     
     return customers
 
-async def standardize_bond_maturity_arguments(raw_input: str, tool_debug: Dict) -> Dict[str, Any]:
-    """債券満期日検索の引数を標準化（LLMベース）"""
-    print(f"[standardize_bond_maturity_arguments] Raw input: {raw_input}")
-    
-    # データベースからシステムプロンプト取得
-    system_prompt = await get_system_prompt("search_customers_by_bond_maturity_pre")
-    
-    print(f"[standardize_bond_maturity_arguments] === LLM CALL START ===")
-    response = await llm_util.call_claude(system_prompt, raw_input)
-    print(f"[standardize_bond_maturity_arguments] LLM Raw Response: {response}")
-    print(f"[standardize_bond_maturity_arguments] === LLM CALL END ===")
-    
-    full_prompt_text = f"{system_prompt}\n\nUser Input: {raw_input}"
-    
-    # tool_debugに情報設定
-    tool_debug["standardize_prompt"] = full_prompt_text
-    tool_debug["standardize_response"] = response
-    
-    try:
-        standardized_params = json.loads(response)
-        print(f"[standardize_bond_maturity_arguments] Final Standardized Output: {standardized_params}")
-        tool_debug["standardize_parameter"] = str(standardized_params)
-        return standardized_params
-    except json.JSONDecodeError as e:
-        print(f"[standardize_bond_maturity_arguments] JSON parse error: {e}")
-        tool_debug["standardize_parameter"] = f"JSONパースエラー: {str(e)}"
-        return {}
-
 async def format_bond_maturity_results(customers: list, user_input: str, tool_debug: Dict) -> str:
     """債券満期検索結果をテキスト化"""
     if not customers:
@@ -126,69 +187,3 @@ async def format_bond_maturity_results(customers: list, user_input: str, tool_de
     tool_debug["format_response"] = result_text
     
     return result_text
-
-async def search_customers_by_bond_maturity(params: Dict[str, Any]) -> MCPResponse:
-    """債券満期日条件での顧客検索"""
-    start_time = time.time()
-    
-    print(f"[search_customers_by_bond_maturity] === FUNCTION START ===")
-    print(f"[search_customers_by_bond_maturity] Received raw params: {params}")
-    
-    # Try外で初期化（エラー時情報保持）
-    tool_debug = {
-        "format_request": None,
-        "standardize_prompt": None,
-        "standardize_response": None,
-        "standardize_parameter": None,
-        "executed_query": None,
-        "executed_query_results": None,
-        "format_response": None,
-        "execution_time_ms": None,
-        "results_count": None
-    }
-    
-    try:
-        # 引数標準化処理（参照渡し）
-        standardized_params = await standardize_bond_maturity_arguments(str(params), tool_debug)
-        print(f"[search_customers_by_bond_maturity] Standardized params: {standardized_params}")
-        
-        days_until_maturity = standardized_params.get("days_until_maturity")
-        maturity_date_from = standardized_params.get("maturity_date_from")
-        maturity_date_to = standardized_params.get("maturity_date_to")
-        
-        print(f"[search_customers_by_bond_maturity] Extracted values:")
-        print(f"  - days_until_maturity: {days_until_maturity}")
-        print(f"  - maturity_date_from: {maturity_date_from}")
-        print(f"  - maturity_date_to: {maturity_date_to}")
-        
-        # データベース接続・クエリ実行（参照渡し）
-        customers = await execute_bond_maturity_query(days_until_maturity, maturity_date_from, maturity_date_to, tool_debug)
-        
-        # 結果テキスト化（参照渡し）
-        result_text = await format_bond_maturity_results(customers, str(params), tool_debug)
-        
-        execution_time = time.time() - start_time
-        tool_debug["execution_time_ms"] = round(execution_time * 1000, 2)
-        tool_debug["results_count"] = len(customers)
-        
-        print(f"[search_customers_by_bond_maturity] Returning result with {len(customers)} customers")
-        print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
-        
-        return MCPResponse(result=result_text, debug_response=tool_debug)
-        
-    except Exception as e:
-        execution_time = time.time() - start_time
-        error_message = f"債券満期検索エラー: {str(e)}"
-        
-        tool_debug["execution_time_ms"] = round(execution_time * 1000, 2)
-        tool_debug["results_count"] = 0
-        
-        print(f"[search_customers_by_bond_maturity] ERROR: {error_message}")
-        print(f"[search_customers_by_bond_maturity] === FUNCTION END ===")
-        
-        return MCPResponse(result=error_message, debug_response=tool_debug, error=str(e))
-        
-        print(f"[search_customers_by_bond_maturity] Error: {e}")
-        print(f"[search_customers_by_bond_maturity] === FUNCTION END (ERROR) ===")
-        
-        return MCPResponse(result=error_message, debug_response=tool_debug)
