@@ -114,6 +114,10 @@ async def execute_bond_maturity_query(days_until_maturity, maturity_date_from, m
     """
     query_params = []
     
+    # 空パラメータ対応: 全て空なら0件になる条件を追加
+    if not days_until_maturity and not maturity_date_from and not maturity_date_to:
+        query += " AND 1 = 0"
+    
     if days_until_maturity:
         query += f" AND h.maturity_date <= CURRENT_DATE + INTERVAL '{days_until_maturity} days'"
     
