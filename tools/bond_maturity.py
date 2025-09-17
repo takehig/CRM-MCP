@@ -2,7 +2,7 @@
 
 import time
 import json
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 from utils.database import get_db_connection
 from utils.system_prompt import get_system_prompt
 from utils.llm_util import llm_util
