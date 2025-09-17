@@ -11,9 +11,14 @@ async def get_system_prompt(prompt_key: str) -> str:
             
             if response.status_code == 200:
                 data = response.json()
+                print(f"[get_system_prompt] SUCCESS: Found prompt for key: {prompt_key}")
                 return data["prompt_text"]
             else:
-                return f"システムプロンプトが取得できませんでした (key: {prompt_key}, status: {response.status_code})"
+                error_msg = f"システムプロンプトが取得できませんでした (key: {prompt_key}, status: {response.status_code})"
+                print(f"[get_system_prompt] ERROR: {error_msg}")
+                return error_msg
                 
     except Exception as e:
-        return f"システムプロンプトが取得できませんでした (key: {prompt_key}, error: {str(e)})"
+        error_msg = f"システムプロンプトが取得できませんでした (key: {prompt_key}, error: {str(e)})"
+        print(f"[get_system_prompt] EXCEPTION: {error_msg}")
+        return error_msg
