@@ -107,9 +107,20 @@ async def get_customers_by_product_text(text_input: str):
         cursor = conn.cursor()
         cursor.execute(query, product_ids)
         
-        # 結果を辞書形式で取得
+        # 結果を辞書形式で取得（Decimal型をfloat型に変換）
         columns = [desc[0] for desc in cursor.description]
-        customers = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        raw_customers = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        # Decimal型をfloat型に変換してJSON serializable にする
+        customers = []
+        for customer in raw_customers:
+            converted_customer = {}
+            for key, value in customer.items():
+                if key in ['quantity', 'current_value'] and value is not None:
+                    converted_customer[key] = float(value)
+                else:
+                    converted_customer[key] = value
+            customers.append(converted_customer)
         
         cursor.close()
         conn.close()
