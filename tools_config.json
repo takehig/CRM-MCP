@@ -41,12 +41,12 @@
         },
         {
             "name": "get_customers_by_product",
-            "description": "商品IDを含むテキストから該当商品の保有顧客リストを返すツール",
-            "usage_context": "商品IDを含むテキストから保有顧客を特定したい、複数商品の一括顧客分析、投資集中リスク評価、クロスセル対象抽出を行いたい時に使用",
+            "description": "商品ID（数値）から該当商品の保有顧客リストを返すツール。商品名しか分からない場合は、まずProductMaster MCPのsearch_products_by_name_fuzzyで商品名→商品ID変換が必要",
+            "usage_context": "商品IDが判明している場合の保有顧客特定、ProductMaster MCP出力（商品ID含む）からの顧客分析、投資集中リスク評価、クロスセル対象抽出を行いたい時に使用。商品名のみの場合は事前にProductMaster MCPで商品ID取得が必須",
             "parameters": {
                 "text_input": {
                     "type": "string",
-                    "description": "商品IDを含むテキスト（ProductMaster MCP出力、ユーザー入力等）"
+                    "description": "商品ID（数値）を含むテキスト。例：「商品ID 7」「ID: 8」「(ID: 6)」等。商品名のみでは動作しない"
                 }
             },
             "function_name": "get_customers_by_product_text",
