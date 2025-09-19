@@ -25,7 +25,7 @@ async def get_customers_by_product_text(text_input: str):
     # Try外側でデバッグ情報初期化（推奨構造）
     debug_response = {
         "function_name": "get_customers_by_product_text",
-        "input_params": {"text_input": text_input},
+        "input_params": {"text_input": text_input},  # 元の入力を記録
         "step1_extract_ids": {
             "llm_request": None,
             "llm_response": None,
@@ -49,13 +49,29 @@ async def get_customers_by_product_text(text_input: str):
     }
     
     try:
+        # 呼び出し元責任：テキスト化処理
+        if isinstance(text_input, dict):
+            # 辞書の場合は適切な文字列を抽出
+            if "text_input" in text_input:
+                text_input_str = text_input["text_input"]
+            else:
+                text_input_str = str(text_input)
+        else:
+            text_input_str = str(text_input)
+        
+        # デバッグ情報に処理後の値も記録
+        debug_response["processed_input"] = text_input_str
+        
         # STEP 1: ID抽出（LLM使用）
         step1_start = time.time()
         extract_prompt = await get_system_prompt("customer_by_product_extract_ids")
-        combined_request = f"{extract_prompt}\n\n入力テキスト: {text_input}"
+        
+        # 呼び出し元責任：プロンプト結合
+        combined_request = f"{extract_prompt}\n\n入力テキスト: {text_input_str}"
         debug_response["step1_extract_ids"]["llm_request"] = combined_request
         
-        ids_response = await llm_util.call_claude(extract_prompt, text_input)
+        # call_claude使用（system + user分離）
+        ids_response = await llm_util.call_claude(extract_prompt, text_input_str)
         debug_response["step1_extract_ids"]["llm_response"] = ids_response
         debug_response["step1_extract_ids"]["execution_time_ms"] = int((time.time() - step1_start) * 1000)
         
@@ -105,9 +121,12 @@ async def get_customers_by_product_text(text_input: str):
         step3_start = time.time()
         format_prompt = await get_system_prompt("customer_by_product_format_results")
         customers_json = json.dumps(customers, ensure_ascii=False)
+        
+        # 呼び出し元責任：プロンプト結合
         combined_request = f"{format_prompt}\n\n入力データ: {customers_json}"
         debug_response["step3_format_results"]["llm_request"] = combined_request
         
+        # call_claude使用（system + user分離）
         formatted_response = await llm_util.call_claude(format_prompt, customers_json)
         debug_response["step3_format_results"]["llm_response"] = formatted_response
         debug_response["step3_format_results"]["execution_time_ms"] = int((time.time() - step3_start) * 1000)
