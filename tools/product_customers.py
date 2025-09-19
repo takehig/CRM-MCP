@@ -91,7 +91,7 @@ async def get_customers_by_product_text(text_input: str):
         step2_start = time.time()
         placeholders = ','.join(['%s'] * len(product_ids))
         query = f"""
-            SELECT h.product_id, p.product_name, h.customer_id, c.customer_name, 
+            SELECT h.product_id, p.product_name, h.customer_id, c.name, 
                    h.quantity, h.current_value
             FROM holdings h 
             JOIN customers c ON h.customer_id = c.customer_id 
