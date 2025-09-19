@@ -6,7 +6,7 @@
 import json
 import time
 from utils.database import get_db_connection
-from utils.llm_client import call_bedrock_llm
+from utils.llm_util import llm_util
 from utils.system_prompt import get_system_prompt
 from models import MCPResponse
 
@@ -55,7 +55,7 @@ async def get_customers_by_product_text(text_input: str):
         combined_request = f"{extract_prompt}\n\n入力テキスト: {text_input}"
         debug_response["step1_extract_ids"]["llm_request"] = combined_request
         
-        ids_response = await call_bedrock_llm(extract_prompt, text_input)
+        ids_response = await llm_util.call_claude(extract_prompt, text_input)
         debug_response["step1_extract_ids"]["llm_response"] = ids_response
         debug_response["step1_extract_ids"]["execution_time_ms"] = int((time.time() - step1_start) * 1000)
         
@@ -108,7 +108,7 @@ async def get_customers_by_product_text(text_input: str):
         combined_request = f"{format_prompt}\n\n入力データ: {customers_json}"
         debug_response["step3_format_results"]["llm_request"] = combined_request
         
-        formatted_response = await call_bedrock_llm(format_prompt, customers_json)
+        formatted_response = await llm_util.call_claude(format_prompt, customers_json)
         debug_response["step3_format_results"]["llm_response"] = formatted_response
         debug_response["step3_format_results"]["execution_time_ms"] = int((time.time() - step3_start) * 1000)
         debug_response["step3_format_results"]["result"] = formatted_response
