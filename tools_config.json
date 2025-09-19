@@ -25,6 +25,19 @@
             },
             "function_name": "get_customer_holdings",
             "module_path": "tools.customer_holdings"
+        },
+        {
+            "name": "predict_cash_inflow_from_sales_notes",
+            "description": "営業メモから入金予測を抽出",
+            "usage_context": "顧客の営業メモから将来の入金予測を知りたい、入金タイミングを予測したい時に使用",
+            "parameters": {
+                "text_input": {
+                    "type": "string",
+                    "description": "顧客指定のテキスト（顧客ID、顧客名など）"
+                }
+            },
+            "function_name": "predict_cash_inflow_from_sales_notes",
+            "module_path": "tools.cash_inflow_prediction"
         }
     ]
 }
