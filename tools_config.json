@@ -38,6 +38,19 @@
             },
             "function_name": "predict_cash_inflow_from_sales_notes",
             "module_path": "tools.cash_inflow_prediction"
+        },
+        {
+            "name": "get_customers_by_product_text",
+            "description": "入力テキストから商品IDを抽出し、該当商品の保有顧客リストを返すツール。処理は3段階：1)LLMによるテキストからのID抽出、2)SQLによる顧客データ検索、3)LLMによる結果整形。入力形式は「(ID: 6)」「ID 12」「商品ID 15」等のID含有テキスト。出力は商品別の顧客保有状況（顧客名、ID、保有数量、評価額）。",
+            "usage_context": "商品IDを含むテキストから保有顧客を特定したい、複数商品の一括顧客分析、投資集中リスク評価、クロスセル対象抽出を行いたい時に使用",
+            "parameters": {
+                "search_result_text": {
+                    "type": "string",
+                    "description": "商品IDを含むテキスト（ProductMaster MCP出力、ユーザー入力等）"
+                }
+            },
+            "function_name": "get_customers_by_product_text",
+            "module_path": "tools.product_customers"
         }
     ]
 }
