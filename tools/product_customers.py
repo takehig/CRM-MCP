@@ -9,6 +9,7 @@ import asyncio
 import aiohttp
 from utils.database import get_db_connection
 from utils.llm_client import call_bedrock_llm
+from models import MCPResponse
 
 async def get_system_prompt(prompt_key: str) -> str:
     """SystemPrompt Management APIからプロンプトを取得"""
@@ -31,7 +32,7 @@ async def get_customers_by_product_text(search_result_text: str):
         search_result_text: 商品IDを含むテキスト
         
     Returns:
-        dict: 結果とデバッグ情報
+        MCPResponse: 結果とデバッグ情報
     """
     start_total_time = time.time()
     
@@ -78,7 +79,11 @@ async def get_customers_by_product_text(search_result_text: str):
         if not product_ids:
             debug_response["error"] = "商品IDが抽出されませんでした"
             debug_response["total_execution_time_ms"] = int((time.time() - start_total_time) * 1000)
-            return {"error": "商品IDが抽出されませんでした", "debug_info": debug_response}
+            return MCPResponse(
+                result="商品IDが抽出されませんでした",
+                error="商品IDが抽出されませんでした",
+                debug_response=debug_response
+            )
         
         # STEP 2: SQL実行（LLM使用しない）
         step2_start = time.time()
@@ -124,9 +129,16 @@ async def get_customers_by_product_text(search_result_text: str):
         
         debug_response["total_execution_time_ms"] = int((time.time() - start_total_time) * 1000)
         
-        return {"result": formatted_response, "debug_info": debug_response}
+        return MCPResponse(
+            result=formatted_response,
+            debug_response=debug_response
+        )
         
     except Exception as e:
         debug_response["error"] = str(e)
         debug_response["total_execution_time_ms"] = int((time.time() - start_total_time) * 1000)
-        return {"error": f"処理中にエラーが発生しました: {str(e)}", "debug_info": debug_response}
+        return MCPResponse(
+            result=f"処理中にエラーが発生しました: {str(e)}",
+            error=f"処理中にエラーが発生しました: {str(e)}",
+            debug_response=debug_response
+        )
