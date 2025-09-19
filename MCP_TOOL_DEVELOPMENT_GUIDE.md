@@ -1,4 +1,46 @@
-# MCP ツール開発標準ガイド v1.1.0
+# MCP ツール開発標準ガイド v1.2.0
+
+## 🔧 LLM呼び出し統一実装（最重要）
+
+### ✅ **call_claude使用方法（呼び出し元責任）**
+```python
+# 必須: 統一実装使用
+from utils.llm_util import llm_util
+from utils.system_prompt import get_system_prompt
+
+async def your_mcp_function(text_input):
+    # 1. テキスト化処理（呼び出し元責任）
+    if isinstance(text_input, dict):
+        if "text_input" in text_input:
+            text_input_str = text_input["text_input"]  # 辞書から文字列抽出
+        else:
+            text_input_str = str(text_input)           # 辞書全体を文字列化
+    else:
+        text_input_str = str(text_input)               # 既に文字列の場合
+    
+    # 2. SystemPrompt取得
+    system_prompt = await get_system_prompt("your_prompt_key")
+    
+    # 3. LLM呼び出し（system + user分離）
+    response = await llm_util.call_claude(system_prompt, text_input_str)
+    
+    return MCPResponse(result=response)
+
+# 禁止事項
+❌ call_llm_simple使用禁止（call_claude使用）
+❌ テキスト化をutils/llm_util.py内で実装禁止
+❌ プロンプト結合をutils/llm_util.py内で実装禁止
+❌ 独自LLM呼び出し関数作成禁止
+```
+
+### ✅ **辞書オブジェクト対応パターン**
+```python
+# 推奨パターン: 安全な変換
+if isinstance(text_input, dict):
+    text_input_str = text_input.get("text_input", str(text_input))
+else:
+    text_input_str = str(text_input)
+```
 
 ## 📋 概要
 WealthAI Enterprise Systems における MCP ツール開発の標準化ガイド  
