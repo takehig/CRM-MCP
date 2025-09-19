@@ -5,31 +5,17 @@
 
 import json
 import time
-import asyncio
-import aiohttp
 from utils.database import get_db_connection
 from utils.llm_client import call_bedrock_llm
+from utils.system_prompt import get_system_prompt
 from models import MCPResponse
 
-async def get_system_prompt(prompt_key: str) -> str:
-    """SystemPrompt Management APIからプロンプトを取得"""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://localhost:8007/api/prompts/{prompt_key}") as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get("prompt_text", "")
-                else:
-                    return f"プロンプト取得エラー: {response.status}"
-    except Exception as e:
-        return f"プロンプト取得エラー: {str(e)}"
-
-async def get_customers_by_product_text(search_result_text: str):
+async def get_customers_by_product_text(text_input: str):
     """
     テキストから商品IDを抽出し、該当商品の保有顧客リストを返す
     
     Args:
-        search_result_text: 商品IDを含むテキスト
+        text_input: 商品IDを含むテキスト
         
     Returns:
         MCPResponse: 結果とデバッグ情報
@@ -39,7 +25,7 @@ async def get_customers_by_product_text(search_result_text: str):
     # Try外側でデバッグ情報初期化（推奨構造）
     debug_response = {
         "function_name": "get_customers_by_product_text",
-        "input_params": {"search_result_text": search_result_text},
+        "input_params": {"text_input": text_input},
         "step1_extract_ids": {
             "llm_request": None,
             "llm_response": None,
@@ -66,10 +52,10 @@ async def get_customers_by_product_text(search_result_text: str):
         # STEP 1: ID抽出（LLM使用）
         step1_start = time.time()
         extract_prompt = await get_system_prompt("customer_by_product_extract_ids")
-        combined_request = f"{extract_prompt}\n\n入力テキスト: {search_result_text}"
+        combined_request = f"{extract_prompt}\n\n入力テキスト: {text_input}"
         debug_response["step1_extract_ids"]["llm_request"] = combined_request
         
-        ids_response = await call_bedrock_llm(extract_prompt, search_result_text)
+        ids_response = await call_bedrock_llm(extract_prompt, text_input)
         debug_response["step1_extract_ids"]["llm_response"] = ids_response
         debug_response["step1_extract_ids"]["execution_time_ms"] = int((time.time() - step1_start) * 1000)
         

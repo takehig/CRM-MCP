@@ -44,7 +44,7 @@
             "description": "商品IDを含むテキストから該当商品の保有顧客リストを返すツール",
             "usage_context": "商品IDを含むテキストから保有顧客を特定したい、複数商品の一括顧客分析、投資集中リスク評価、クロスセル対象抽出を行いたい時に使用",
             "parameters": {
-                "search_result_text": {
+                "text_input": {
                     "type": "string",
                     "description": "商品IDを含むテキスト（ProductMaster MCP出力、ユーザー入力等）"
                 }
