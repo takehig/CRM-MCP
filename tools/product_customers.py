@@ -54,10 +54,22 @@ async def get_customers_by_product_text(text_input: str):
             # 辞書の場合は適切な文字列を抽出
             if "text_input" in text_input:
                 text_input_str = text_input["text_input"]
+            elif "content" in text_input:
+                # content フィールドがある場合の処理
+                content = text_input["content"]
+                if isinstance(content, list) and len(content) > 0:
+                    # content が配列の場合、最初の要素のtextを取得
+                    text_input_str = content[0].get("text", str(content))
+                else:
+                    text_input_str = str(content)
             else:
                 text_input_str = str(text_input)
         else:
             text_input_str = str(text_input)
+        
+        # 文字列であることを確認
+        if not isinstance(text_input_str, str):
+            text_input_str = str(text_input_str)
         
         # デバッグ情報に処理後の値も記録
         debug_response["processed_input"] = text_input_str
