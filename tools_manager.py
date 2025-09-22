@@ -1,69 +1,105 @@
-import json
-import importlib
+import httpx
 from typing import Dict, List, Any, Optional
 
 class ToolsManager:
-    """ツール定義の一元管理クラス"""
+    """ツール定義の一元管理クラス - MCP-Management API対応・直接呼び出し設計"""
     
-    def __init__(self, config_path: str = "tools_config.json"):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = json.load(f)
+    def __init__(self, mcp_management_url: str = "http://localhost:8008"):
+        self.mcp_management_url = mcp_management_url
+        self.tools_cache = None
     
-    def get_tools_list(self) -> List[Dict[str, Any]]:
+    async def get_tools_from_management(self) -> List[Dict[str, Any]]:
+        """MCP-Management から有効なツール一覧を取得"""
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{self.mcp_management_url}/api/tools")
+                if response.status_code == 200:
+                    data = response.json()
+                    # enabled=True のツールのみ返す
+                    return [tool for tool in data.get("tools", []) if tool.get("enabled", False)]
+                else:
+                    print(f"[ToolsManager] MCP-Management API error: {response.status_code}")
+                    return []
+        except Exception as e:
+            print(f"[ToolsManager] Failed to fetch tools from MCP-Management: {e}")
+            return []
+    
+    async def get_tools_list(self) -> List[Dict[str, Any]]:
         """tools/list用のツール一覧"""
+        if not self.tools_cache:
+            self.tools_cache = await self.get_tools_from_management()
+        
         return [
             {
-                "name": tool["name"],
+                "name": tool["tool_key"],  # tool_key をそのまま name として使用
                 "description": tool["description"],
                 "inputSchema": {
                     "type": "object",
-                    "properties": tool["parameters"],
+                    "properties": {
+                        "text_input": {
+                            "type": "string",
+                            "description": "入力テキスト"
+                        }
+                    },
                     "required": ["text_input"]
                 }
             }
-            for tool in self.config["tools"]
+            for tool in self.tools_cache
         ]
     
-    def get_tools_descriptions(self) -> List[Dict[str, Any]]:
+    async def get_tools_descriptions(self) -> List[Dict[str, Any]]:
         """/tools/descriptions用の詳細情報"""
+        if not self.tools_cache:
+            self.tools_cache = await self.get_tools_from_management()
+        
         return [
             {
-                "name": tool["name"],
+                "name": tool["tool_key"],
                 "description": tool["description"],
-                "usage_context": tool["usage_context"],
-                "parameters": tool["parameters"]
+                "usage_context": f"{tool['tool_name']}を使用",
+                "parameters": {
+                    "text_input": {
+                        "type": "string",
+                        "description": "入力テキスト"
+                    }
+                }
             }
-            for tool in self.config["tools"]
+            for tool in self.tools_cache
         ]
     
-    def get_mcp_tools_format(self) -> List[Dict[str, Any]]:
+    async def get_mcp_tools_format(self) -> List[Dict[str, Any]]:
         """MCPプロトコル用のツール一覧"""
-        return [
-            {
-                "name": tool["name"],
-                "description": tool["description"],
-                "usage_context": tool["usage_context"],
-                "parameters": tool["parameters"]
-            }
-            for tool in self.config["tools"]
-        ]
+        return await self.get_tools_descriptions()
     
-    def get_tool_function(self, tool_name: str):
-        """ツール名から関数を動的取得"""
-        for tool in self.config["tools"]:
-            if tool["name"] == tool_name:
-                try:
-                    module = importlib.import_module(tool["module_path"])
-                    return getattr(module, tool["function_name"])
-                except (ImportError, AttributeError) as e:
-                    print(f"[ToolsManager] Failed to import {tool_name}: {e}")
-                    return None
-        return None
-    
-    def is_valid_tool(self, tool_name: str) -> bool:
+    async def is_valid_tool(self, tool_name: str) -> bool:
         """ツール名の有効性チェック"""
-        return any(tool["name"] == tool_name for tool in self.config["tools"])
+        if not self.tools_cache:
+            self.tools_cache = await self.get_tools_from_management()
+        
+        return any(tool["tool_key"] == tool_name for tool in self.tools_cache)
     
-    def get_tool_names(self) -> List[str]:
+    async def get_tool_function(self, tool_name: str):
+        """ツール名から関数を直接取得 - マッピングなし"""
+        # 直接インポート・呼び出し
+        if tool_name == "search_customers_by_bond_maturity":
+            from tools.bond_maturity import search_customers_by_bond_maturity
+            return search_customers_by_bond_maturity
+        elif tool_name == "get_customer_holdings":
+            from tools.customer_holdings import get_customer_holdings
+            return get_customer_holdings
+        elif tool_name == "predict_cash_inflow_from_sales_notes":
+            from tools.cash_inflow_prediction import predict_cash_inflow_from_sales_notes
+            return predict_cash_inflow_from_sales_notes
+        elif tool_name == "get_customers_by_product_text":
+            from tools.product_customers import get_customers_by_product_text
+            return get_customers_by_product_text
+        else:
+            print(f"[ToolsManager] Unknown tool: {tool_name}")
+            return None
+    
+    async def get_tool_names(self) -> List[str]:
         """全ツール名のリスト"""
-        return [tool["name"] for tool in self.config["tools"]]
+        if not self.tools_cache:
+            self.tools_cache = await self.get_tools_from_management()
+        
+        return [tool["tool_key"] for tool in self.tools_cache]

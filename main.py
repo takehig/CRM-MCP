@@ -49,7 +49,7 @@ async def mcp_endpoint(request: MCPRequest):
             return MCPResponse(
                 id=request.id,
                 result={
-                    "tools": tools_manager.get_mcp_tools_format()
+                    "tools": await tools_manager.get_mcp_tools_format()
                 }
             )
         
@@ -62,9 +62,9 @@ async def mcp_endpoint(request: MCPRequest):
             print(f"[MCP_ENDPOINT] Arguments: {arguments}")
             
             # 動的ツール実行
-            if tools_manager.is_valid_tool(tool_name):
+            if await tools_manager.is_valid_tool(tool_name):
                 print(f"[MCP_ENDPOINT] Calling {tool_name}")
-                tool_function = tools_manager.get_tool_function(tool_name)
+                tool_function = await tools_manager.get_tool_function(tool_name)
                 
                 if tool_function:
                     tool_response = await tool_function(arguments)
@@ -117,14 +117,14 @@ async def mcp_endpoint(request: MCPRequest):
 async def list_available_tools():
     """MCPプロトコル準拠のツール一覧"""
     return {
-        "tools": tools_manager.get_tools_list()
+        "tools": await tools_manager.get_tools_list()
     }
 
 @app.get("/tools/descriptions")
 async def get_tool_descriptions():
     """ツール詳細情報（AIChat用）"""
     return {
-        "tools": tools_manager.get_tools_descriptions()
+        "tools": await tools_manager.get_tools_descriptions()
     }
 
 if __name__ == "__main__":
