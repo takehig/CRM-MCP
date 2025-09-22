@@ -8,7 +8,7 @@ class ToolsManager:
         self.mcp_management_url = mcp_management_url
     
     async def get_tools_from_management(self) -> List[Dict[str, Any]]:
-        """MCP-Management から有効なツール一覧を取得"""
+        """MCP-Management から CRM MCP のツール一覧を取得"""
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{self.mcp_management_url}/api/tools")
@@ -27,10 +27,10 @@ class ToolsManager:
                         print(f"[ToolsManager] Unexpected response structure: {data}")
                         return []
                     
-                    # enabled=True のツールのみ返す
-                    enabled_tools = [tool for tool in tools_list if tool.get("enabled", False)]
-                    print(f"[ToolsManager] Enabled tools: {[tool.get('tool_key') for tool in enabled_tools]}")
-                    return enabled_tools
+                    # CRM MCP のツールのみ返す (enabled フィルタリング削除)
+                    crm_tools = [tool for tool in tools_list if tool.get("mcp_server_name") == "CRM MCP"]
+                    print(f"[ToolsManager] CRM MCP tools: {[tool.get('tool_key') for tool in crm_tools]}")
+                    return crm_tools
                 else:
                     print(f"[ToolsManager] MCP-Management API error: {response.status_code}")
                     return []
