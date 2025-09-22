@@ -15,8 +15,23 @@ class ToolsManager:
                 response = await client.get(f"{self.mcp_management_url}/api/tools")
                 if response.status_code == 200:
                     data = response.json()
+                    print(f"[ToolsManager] MCP-Management response: {data}")
+                    
+                    # レスポンス構造確認・修正
+                    if isinstance(data, list):
+                        # 直接リストの場合
+                        tools_list = data
+                    elif isinstance(data, dict) and "tools" in data:
+                        # {"tools": [...]} の場合
+                        tools_list = data["tools"]
+                    else:
+                        print(f"[ToolsManager] Unexpected response structure: {data}")
+                        return []
+                    
                     # enabled=True のツールのみ返す
-                    return [tool for tool in data.get("tools", []) if tool.get("enabled", False)]
+                    enabled_tools = [tool for tool in tools_list if tool.get("enabled", False)]
+                    print(f"[ToolsManager] Enabled tools: {[tool.get('tool_key') for tool in enabled_tools]}")
+                    return enabled_tools
                 else:
                     print(f"[ToolsManager] MCP-Management API error: {response.status_code}")
                     return []
