@@ -86,7 +86,14 @@ class ToolsManager:
     async def is_valid_tool(self, tool_name: str) -> bool:
         """ツール名の有効性チェック"""
         tools = await self.get_tools_from_management()
-        return any(tool["tool_key"] == tool_name for tool in tools)
+        
+        print(f"[ToolsManager] is_valid_tool called with: {tool_name}")
+        print(f"[ToolsManager] Available tools: {[tool.get('tool_key') for tool in tools]}")
+        
+        result = any(tool["tool_key"] == tool_name for tool in tools)
+        print(f"[ToolsManager] is_valid_tool result: {result}")
+        
+        return result
     
     async def get_tool_function(self, tool_name: str):
         """ツール名から関数を直接取得 - マッピングなし"""
