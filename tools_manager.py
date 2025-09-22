@@ -6,7 +6,6 @@ class ToolsManager:
     
     def __init__(self, mcp_management_url: str = "http://localhost:8008"):
         self.mcp_management_url = mcp_management_url
-        self.tools_cache = None
     
     async def get_tools_from_management(self) -> List[Dict[str, Any]]:
         """MCP-Management から有効なツール一覧を取得"""
@@ -41,8 +40,7 @@ class ToolsManager:
     
     async def get_tools_list(self) -> List[Dict[str, Any]]:
         """tools/list用のツール一覧"""
-        if not self.tools_cache:
-            self.tools_cache = await self.get_tools_from_management()
+        tools = await self.get_tools_from_management()
         
         return [
             {
@@ -59,13 +57,12 @@ class ToolsManager:
                     "required": ["text_input"]
                 }
             }
-            for tool in self.tools_cache
+            for tool in tools
         ]
     
     async def get_tools_descriptions(self) -> List[Dict[str, Any]]:
         """/tools/descriptions用の詳細情報"""
-        if not self.tools_cache:
-            self.tools_cache = await self.get_tools_from_management()
+        tools = await self.get_tools_from_management()
         
         return [
             {
@@ -79,7 +76,7 @@ class ToolsManager:
                     }
                 }
             }
-            for tool in self.tools_cache
+            for tool in tools
         ]
     
     async def get_mcp_tools_format(self) -> List[Dict[str, Any]]:
@@ -88,10 +85,8 @@ class ToolsManager:
     
     async def is_valid_tool(self, tool_name: str) -> bool:
         """ツール名の有効性チェック"""
-        if not self.tools_cache:
-            self.tools_cache = await self.get_tools_from_management()
-        
-        return any(tool["tool_key"] == tool_name for tool in self.tools_cache)
+        tools = await self.get_tools_from_management()
+        return any(tool["tool_key"] == tool_name for tool in tools)
     
     async def get_tool_function(self, tool_name: str):
         """ツール名から関数を直接取得 - マッピングなし"""
@@ -114,7 +109,5 @@ class ToolsManager:
     
     async def get_tool_names(self) -> List[str]:
         """全ツール名のリスト"""
-        if not self.tools_cache:
-            self.tools_cache = await self.get_tools_from_management()
-        
-        return [tool["tool_key"] for tool in self.tools_cache]
+        tools = await self.get_tools_from_management()
+        return [tool["tool_key"] for tool in tools]
