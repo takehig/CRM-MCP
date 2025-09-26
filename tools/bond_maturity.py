@@ -106,11 +106,11 @@ async def execute_bond_maturity_query(days_until_maturity, maturity_date_from, m
     
     query = """
     SELECT DISTINCT c.customer_id, c.name, c.email, c.phone, c.risk_tolerance,
-           h.maturity_date, p.product_name, p.product_type
+           h.maturity_date, p.product_name, p.category_code
     FROM customers c
     JOIN holdings h ON c.customer_id = h.customer_id
     JOIN products p ON h.product_id = p.product_id
-    WHERE p.product_type ILIKE '%債券%' OR p.product_type ILIKE '%bond%'
+    WHERE p.category_code ILIKE '%BOND%'
     """
     query_params = []
     
@@ -159,7 +159,7 @@ async def execute_bond_maturity_query(days_until_maturity, maturity_date_from, m
             "risk_tolerance": row['risk_tolerance'],
             "maturity_date": row['maturity_date'].isoformat() if row['maturity_date'] else None,
             "product_name": row['product_name'],
-            "product_type": row['product_type']
+            "category_code": row['category_code']
         })
     
     # tool_debugに結果設定

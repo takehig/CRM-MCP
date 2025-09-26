@@ -119,7 +119,7 @@ async def execute_holdings_query(tool_debug: dict) -> None:
     query = f"""
     SELECT h.holding_id, h.quantity, h.unit_price, h.current_price, h.current_value,
            h.purchase_date, h.customer_id,
-           p.product_code, p.product_name, p.product_type, p.currency,
+           p.product_code, p.product_name, p.category_code, p.currency,
            c.name as customer_name
     FROM holdings h
     JOIN products p ON h.product_id = p.product_id
@@ -148,7 +148,7 @@ async def execute_holdings_query(tool_debug: dict) -> None:
             "customer_name": row['customer_name'],
             "product_code": row['product_code'],
             "product_name": row['product_name'],
-            "product_type": row['product_type'],
+            "category_code": row['category_code'],
             "quantity": float(row['quantity']) if row['quantity'] else 0,
             "unit_price": float(row['unit_price']) if row['unit_price'] else 0,
             "current_price": float(row['current_price']) if row['current_price'] else 0,
